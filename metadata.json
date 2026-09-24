@@ -1,0 +1,8 @@
+{
+  "name": "Remix MYCASH Calling Portal",
+  "description": "Role-based call management, customer telemetry, Excel bulk import, and operational analytics portal for MyCash with strict RBAC for HQ Admins, Supervisors, and Agents.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -61,8 +61,8 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
-              <UserIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="p-1.5 bg-red-100 text-red-600 border border-red-200/60 rounded-lg">
+              <UserIcon className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight">My Profile Settings</h3>
@@ -180,7 +180,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-xs text-xs"
+                    className="px-4 py-1.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-lg font-bold shadow-xs text-xs shadow-red-500/20 cursor-pointer transition-all"
                   >
                     Update Password
                   </button>

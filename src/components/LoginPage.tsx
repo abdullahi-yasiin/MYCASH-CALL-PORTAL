@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   ArrowLeft,
   ShieldCheck,
-  Loader2
+  Loader2,
+  Clock
 } from 'lucide-react';
 import { User } from '../types';
 import { PasswordForceChangeModal } from './PasswordForceChangeModal';
@@ -20,6 +21,7 @@ interface LoginPageProps {
   onCancelOrBack?: () => void;
   currentUser?: User | null;
   onUpdateUser?: (user: User) => void;
+  inactivityNotice?: string | null;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({
@@ -27,7 +29,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   allUsers,
   onCancelOrBack,
   currentUser,
-  onUpdateUser
+  onUpdateUser,
+  inactivityNotice
 }) => {
   const [email, setEmail] = useState<string>(() => {
     return currentUser?.email || '';
@@ -150,6 +153,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               }}
               className="space-y-3.5 sm:space-y-4"
             >
+              {inactivityNotice && (
+                <div 
+                  id="login-session-inactivity-banner" 
+                  className="p-3 sm:p-3.5 bg-amber-50/95 border border-amber-300/80 rounded-xl text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in duration-200 shadow-2xs"
+                >
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="leading-snug">
+                    <span className="font-bold block text-amber-950 mb-0.5">Session Closed for Security</span>
+                    <span className="text-[11px] text-amber-800">{inactivityNotice}</span>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[11px] sm:text-xs font-semibold text-slate-700 mb-1.5 tracking-wide">
                   Email Address

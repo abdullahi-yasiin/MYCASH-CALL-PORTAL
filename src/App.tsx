@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   Building2, 
   Users, 
@@ -19,7 +19,8 @@ import {
   User as UserIcon,
   Check,
   Zap,
-  Eye
+  Eye,
+  Clock
 } from 'lucide-react';
 import { 
   User, 
@@ -60,7 +61,13 @@ import { ProfileSettingsModal } from './components/ProfileSettingsModal';
 import { PasswordForceChangeModal } from './components/PasswordForceChangeModal';
 import { DeleteExcelModal } from './components/DeleteExcelModal';
 import { SetTargetModal } from './components/SetTargetModal';
+import { SessionInactivityModal } from './components/SessionInactivityModal';
 import { supabaseDb } from './lib/supabase';
+
+// 30 Minutes Inactivity Session Rules
+// Close/End session only IF the session is not active for 30 minutes
+export const SESSION_INACTIVITY_LIMIT_MS = 30 * 60 * 1000; // 30 minutes in milliseconds (1,800,000 ms)
+export const SESSION_WARNING_THRESHOLD_MS = 28 * 60 * 1000; // Warning countdown shown at 28 minutes of inactivity (2 min grace period)
 
 const INITIAL_FILTERS: FilterState = {
   dateStart: '',
@@ -120,9 +127,22 @@ export default function App() {
   });
 
   // Current logged in user (null if not authenticated yet)
+  // Close/End session only IF the session is not active for 30 minutes
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem('mycash_v3_current_user');
+    const lastActive = localStorage.getItem('mycash_v3_last_activity');
     if (savedUser) {
+      if (lastActive) {
+        const elapsed = Date.now() - parseInt(lastActive, 10);
+        if (elapsed >= SESSION_INACTIVITY_LIMIT_MS) {
+          // Session expired due to 30 minutes of inactivity
+          console.warn('[Session Security] Session closed upon load: Inactive for 30+ minutes.');
+          localStorage.removeItem('mycash_v3_current_user');
+          localStorage.removeItem('mycash_v3_last_activity');
+          localStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
+          return null;
+        }
+      }
       try {
         return JSON.parse(savedUser);
       } catch (e) {
@@ -133,13 +153,37 @@ export default function App() {
   });
 
   // Full-page Login View vs Dashboard Workspace View
-  // Default to true (Login screen) unless a valid logged-in session exists
+  // Default to true (Login screen) unless a valid logged-in session exists and is active within 30 minutes
   const [isAuthView, setIsAuthView] = useState<boolean>(() => {
     const savedUser = localStorage.getItem('mycash_v3_current_user');
+    const lastActive = localStorage.getItem('mycash_v3_last_activity');
     if (!savedUser) return true;
+    if (lastActive) {
+      const elapsed = Date.now() - parseInt(lastActive, 10);
+      if (elapsed >= SESSION_INACTIVITY_LIMIT_MS) {
+        return true;
+      }
+    }
     const savedAuth = localStorage.getItem('mycash_v3_is_auth_view');
     return savedAuth ? JSON.parse(savedAuth) : false;
   });
+
+  // Session 30-Minute Inactivity Auto-Close State
+  const [inactivityNotice, setInactivityNotice] = useState<string | null>(() => {
+    const lastActive = localStorage.getItem('mycash_v3_last_activity');
+    if (lastActive) {
+      const elapsed = Date.now() - parseInt(lastActive, 10);
+      if (elapsed >= SESSION_INACTIVITY_LIMIT_MS) {
+        return 'Your previous session was closed automatically after 30 minutes of inactivity. Please sign in again.';
+      }
+    }
+    return null;
+  });
+  const [isSessionWarningOpen, setIsSessionWarningOpen] = useState<boolean>(false);
+  const [warningSecondsRemaining, setWarningSecondsRemaining] = useState<number>(120);
+
+  const lastActivityRef = useRef<number>(Date.now());
+  const lastStoredWriteRef = useRef<number>(Date.now());
 
   // Focus Calling Mode for high-productivity outbound dialing
   const [isFocusModeActive, setIsFocusModeActive] = useState<boolean>(false);
@@ -179,6 +223,134 @@ export default function App() {
       setToast(null);
     }, 4500);
   };
+
+  // Close / End session ONLY when session is not active for 30 minutes
+  const handleSessionTimeout = useCallback(() => {
+    console.warn('[Session Security] 30 minutes of inactivity reached. Closing session.');
+    setIsSessionWarningOpen(false);
+    setIsAuthView(true);
+    setCurrentUser(null);
+    localStorage.removeItem('mycash_v3_current_user');
+    localStorage.removeItem('mycash_v3_last_activity');
+    localStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
+    setInactivityNotice('Your session has ended because the terminal was inactive for 30 minutes. Please sign in again.');
+    showToast('Session ended: 30 minutes of inactivity reached.', 'error');
+  }, []);
+
+  // Record user interaction to keep session active (only ends if NOT active for 30 min)
+  const recordActivity = useCallback((forceStorageUpdate = false) => {
+    const now = Date.now();
+    lastActivityRef.current = now;
+
+    // If warning dialog was active, close it immediately since user is actively interacting
+    setIsSessionWarningOpen(prev => {
+      if (prev) return false;
+      return prev;
+    });
+
+    // Throttle writes to localStorage to prevent unnecessary disk I/O (every 4 seconds)
+    if (forceStorageUpdate || now - lastStoredWriteRef.current >= 4000) {
+      lastStoredWriteRef.current = now;
+      localStorage.setItem('mycash_v3_last_activity', now.toString());
+    }
+  }, []);
+
+  // Monitor user activity and enforce 30-minute inactivity limit
+  useEffect(() => {
+    if (!currentUser || isAuthView) {
+      setIsSessionWarningOpen(false);
+      return;
+    }
+
+    // Initialize or verify last active timestamp
+    const existingLastActive = localStorage.getItem('mycash_v3_last_activity');
+    if (!existingLastActive) {
+      const now = Date.now();
+      localStorage.setItem('mycash_v3_last_activity', now.toString());
+      lastActivityRef.current = now;
+    } else {
+      const parsed = parseInt(existingLastActive, 10);
+      if (!isNaN(parsed)) {
+        lastActivityRef.current = parsed;
+      }
+    }
+
+    // Listen for any user input across the application
+    const handleUserInteraction = () => {
+      recordActivity();
+    };
+
+    const userActivityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click', 'wheel'];
+    userActivityEvents.forEach(evt => {
+      window.addEventListener(evt, handleUserInteraction, { passive: true });
+    });
+
+    // Storage event for multi-tab synchronization
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === 'mycash_v3_last_activity' && e.newValue) {
+        const remoteTime = parseInt(e.newValue, 10);
+        if (!isNaN(remoteTime)) {
+          lastActivityRef.current = remoteTime;
+          setIsSessionWarningOpen(false);
+        }
+      }
+      if (e.key === 'mycash_v3_current_user' && !e.newValue) {
+        // Session ended in another window/tab
+        setCurrentUser(null);
+        setIsAuthView(true);
+        setIsSessionWarningOpen(false);
+      }
+    };
+    window.addEventListener('storage', handleStorageEvent);
+
+    // Periodic timer checking if 30 minutes of inactivity has elapsed
+    const timerInterval = setInterval(() => {
+      const now = Date.now();
+      const storedLast = localStorage.getItem('mycash_v3_last_activity');
+      const lastActive = storedLast ? parseInt(storedLast, 10) : lastActivityRef.current;
+      const elapsed = now - lastActive;
+
+      if (elapsed >= SESSION_INACTIVITY_LIMIT_MS) {
+        // Inactive for 30 minutes -> Close session
+        handleSessionTimeout();
+      } else if (elapsed >= SESSION_WARNING_THRESHOLD_MS) {
+        // Warning threshold reached (28 minutes of inactivity)
+        const remainingMs = SESSION_INACTIVITY_LIMIT_MS - elapsed;
+        const remainingSec = Math.max(1, Math.ceil(remainingMs / 1000));
+        setWarningSecondsRemaining(remainingSec);
+        setIsSessionWarningOpen(true);
+      } else {
+        setIsSessionWarningOpen(false);
+      }
+    }, 1000);
+
+    // Check immediately on tab focus or computer wake
+    const handleVisibilityOrFocus = () => {
+      const now = Date.now();
+      const storedLast = localStorage.getItem('mycash_v3_last_activity');
+      const lastActive = storedLast ? parseInt(storedLast, 10) : lastActivityRef.current;
+      const elapsed = now - lastActive;
+
+      if (elapsed >= SESSION_INACTIVITY_LIMIT_MS) {
+        handleSessionTimeout();
+      } else {
+        recordActivity(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    return () => {
+      clearInterval(timerInterval);
+      userActivityEvents.forEach(evt => {
+        window.removeEventListener(evt, handleUserInteraction);
+      });
+      window.removeEventListener('storage', handleStorageEvent);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
+  }, [currentUser, isAuthView, recordActivity, handleSessionTimeout]);
 
   // Automatic background cloud sync with Supabase
   useEffect(() => {
@@ -837,7 +1009,16 @@ export default function App() {
         allUsers={users}
         currentUser={currentUser}
         onUpdateUser={handleUpdateUser}
+        inactivityNotice={inactivityNotice}
         onLoginSuccess={(loggedInUser) => {
+          const now = Date.now();
+          localStorage.setItem('mycash_v3_last_activity', now.toString());
+          localStorage.setItem('mycash_v3_current_user', JSON.stringify(loggedInUser));
+          localStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(false));
+          setInactivityNotice(null);
+          setIsSessionWarningOpen(false);
+          lastActivityRef.current = now;
+          lastStoredWriteRef.current = now;
           setCurrentUser(loggedInUser);
           setIsAuthView(false);
           showToast(`Welcome, ${loggedInUser.name}! Session started.`);
@@ -867,10 +1048,13 @@ export default function App() {
         onExportExcel={handleExportExcel}
         onExportPdf={handleExportPdf}
         onLogout={() => {
+          setIsSessionWarningOpen(false);
           setIsAuthView(true);
           setCurrentUser(null);
           localStorage.removeItem('mycash_v3_current_user');
+          localStorage.removeItem('mycash_v3_last_activity');
           localStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
+          setInactivityNotice(null);
           showToast('Signed out of active terminal.');
         }}
         onToggleFocusMode={() => setIsFocusModeActive(!isFocusModeActive)}
@@ -878,10 +1062,13 @@ export default function App() {
         searchQuery={filters.searchQuery}
         onSearchChange={(q) => setFilters(prev => ({ ...prev, searchQuery: q }))}
         onOpenLoginScreen={() => {
+          setIsSessionWarningOpen(false);
           setIsAuthView(true);
           setCurrentUser(null);
           localStorage.removeItem('mycash_v3_current_user');
+          localStorage.removeItem('mycash_v3_last_activity');
           localStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
+          setInactivityNotice(null);
         }}
         onRefreshData={() => {
           setRecords(prev => [...prev]);
@@ -1233,6 +1420,14 @@ export default function App() {
           onPasswordChange={handleUpdatePassword}
         />
       )}
+
+      {/* 30-Minute Inactivity Auto-Close Warning Modal */}
+      <SessionInactivityModal
+        isOpen={isSessionWarningOpen}
+        secondsRemaining={warningSecondsRemaining}
+        onStayLoggedIn={() => recordActivity(true)}
+        onLogoutNow={handleSessionTimeout}
+      />
     </div>
   );
 }

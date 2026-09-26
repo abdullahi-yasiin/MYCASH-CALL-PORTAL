@@ -81,7 +81,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
           onLoginSuccess(match);
         } else {
-          setErrorMessage('Invalid password. (If your account was newly created or reset, please use standard "amal123")');
+          setErrorMessage('Invalid password, try again. If you forgot your password contact HQ Support team.');
         }
       } else {
         setErrorMessage('Account not found with this email address.');
@@ -156,12 +156,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               {inactivityNotice && (
                 <div 
                   id="login-session-inactivity-banner" 
-                  className="p-3 sm:p-3.5 bg-amber-50/95 border border-amber-300/80 rounded-xl text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in duration-200 shadow-2xs"
+                  className="p-3 sm:p-3.5 bg-red-50/90 border border-red-200/90 rounded-xl text-xs text-red-900 flex items-start gap-2.5 animate-in fade-in duration-200 shadow-2xs"
                 >
-                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <Clock className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                   <div className="leading-snug">
-                    <span className="font-bold block text-amber-950 mb-0.5">Session Closed for Security</span>
-                    <span className="text-[11px] text-amber-800">{inactivityNotice}</span>
+                    <span className="font-bold block text-red-950 mb-0.5">Session Closed for Security</span>
+                    <span className="text-[11px] text-red-800">{inactivityNotice}</span>
                   </div>
                 </div>
               )}
@@ -210,7 +210,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               {errorMessage && (
                 <div className="p-3 bg-rose-50/90 border border-rose-200/90 rounded-xl text-[11px] sm:text-xs text-rose-700 flex items-start gap-2 animate-in fade-in duration-150">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed font-medium">{errorMessage}</span>
+                  <span className="-mt-[1px] leading-relaxed font-medium">{errorMessage}</span>
                 </div>
               )}
 

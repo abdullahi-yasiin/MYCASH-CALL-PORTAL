@@ -403,7 +403,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
             <button
               id="btn-add-new-user-open"
               onClick={handleOpenAddForm}
-              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] sm:text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-colors sm:mb-2 active:scale-95"
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-[11px] sm:text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-colors sm:mb-2 active:scale-95 cursor-pointer"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>Add New User</span>

@@ -80,36 +80,89 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         {/* Profile details */}
         <div className="p-5 sm:p-6 space-y-4">
           
-          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 sm:p-4 space-y-2.5">
-            <div className="flex items-start gap-2.5 text-xs">
-              <UserIcon className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">Account Holder</span>
-                <span className="font-extrabold text-slate-800 text-sm">{currentUser.name}</span>
+          {/* Redesigned User Information Section */}
+          <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-2xs">
+            {/* Header Identity Row */}
+            <div className="flex items-center gap-3 pb-3 mb-3 border-b border-slate-200/80">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-red-100 text-red-600 border border-red-200/70 flex items-center justify-center font-black text-xs sm:text-sm shrink-0 shadow-2xs">
+                {currentUser.name.slice(0, 2).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                  <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm truncate leading-tight">
+                    {currentUser.name}
+                  </h4>
+                  <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-sm text-[9px] sm:text-[10px] font-bold border ${
+                    currentUser.role === 'HQ_ADMIN'
+                      ? 'bg-red-50 text-red-700 border-red-200'
+                      : currentUser.role === 'SUPERVISOR'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}>
+                    {currentUser.role === 'HQ_ADMIN' ? 'HQ Admin' : currentUser.role === 'SUPERVISOR' ? 'Supervisor' : 'Team Member'}
+                  </span>
+                </div>
+                <p className="text-[10px] sm:text-[10.5px] text-slate-500 truncate mt-0.5">
+                  User Type: <span className="font-semibold text-slate-700">{currentUser.role === 'HQ_ADMIN' ? 'HQ Administrator' : currentUser.role === 'SUPERVISOR' ? 'Branch Supervisor' : 'Tele-Sales Agent'}</span>
+                </p>
               </div>
             </div>
 
-            <div className="flex items-start gap-2.5 text-xs">
-              <Mail className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">Work Email</span>
-                <span className="font-semibold text-slate-800">{currentUser.email}</span>
+            {/* Structured 2x2 Details Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+              {/* Work Email */}
+              <div className="flex items-center gap-2 p-1.5 sm:p-2 bg-white border border-slate-200/80 rounded-xl">
+                <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
+                  <Mail className="w-3 h-3" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[8px] sm:text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block leading-tight">Work Email</span>
+                  <span className="font-semibold text-slate-800 text-[10px] sm:text-[10.5px] truncate block" title={currentUser.email}>
+                    {currentUser.email}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-start gap-2.5 text-xs">
-              <Building2 className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">Branch/Region Assignment</span>
-                <span className="font-semibold text-slate-800">{currentUser.branch}</span>
+              {/* Branch Hub */}
+              <div className="flex items-center gap-2 p-1.5 sm:p-2 bg-white border border-slate-200/80 rounded-xl">
+                <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
+                  <Building2 className="w-3 h-3" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[8px] sm:text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block leading-tight">Assigned Hub</span>
+                  <span className="font-semibold text-slate-800 text-[10px] sm:text-[10.5px] truncate block">
+                    {currentUser.branch}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-start gap-2.5 text-xs">
-              <PhoneIcon className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">Mobile Number</span>
-                <span className="font-semibold text-slate-800">{currentUser.phone || 'None'}</span>
+              {/* Mobile Phone */}
+              <div className="flex items-center gap-2 p-1.5 sm:p-2 bg-white border border-slate-200/80 rounded-xl">
+                <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
+                  <PhoneIcon className="w-3 h-3" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[8px] sm:text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block leading-tight">Mobile Phone</span>
+                  <span className="font-semibold text-slate-800 text-[10px] sm:text-[10.5px] truncate block">
+                    {currentUser.phone || 'Not configured'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Terminal Access Status */}
+              <div className="flex items-center gap-2 p-1.5 sm:p-2 bg-white border border-slate-200/80 rounded-xl">
+                <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0 border border-emerald-100">
+                  <ShieldCheck className="w-3 h-3" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[8px] sm:text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block leading-tight">Terminal Status</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <span className="font-bold text-emerald-700 text-[10px] sm:text-[10.5px]">
+                      {currentUser.active !== false ? 'Active & Verified' : 'Deactivated'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

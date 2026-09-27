@@ -145,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
   const RoleIcon = roleBadge.icon;
 
   return (
-    <header className="bg-white text-slate-900 sticky top-0 z-40 shadow-xs border-b border-slate-200/80">
+    <header className="bg-[#0B172E] text-slate-100 sticky top-0 z-40 shadow-md border-b border-slate-800/80">
       {/* Primary Top Bar */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between min-h-[3.25rem] sm:h-16 py-1.5 sm:py-0 gap-1.5 sm:gap-3 flex-wrap sm:flex-nowrap">
@@ -159,15 +159,15 @@ export const Header: React.FC<HeaderProps> = ({
             />
             <div className="flex flex-col justify-center">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="font-black text-xs sm:text-sm md:text-base tracking-tight text-slate-950 leading-none">
+                <h1 className="font-black text-xs sm:text-sm md:text-base tracking-tight text-white leading-none">
                   MYCASH
                 </h1>
-                <span className="hidden lg:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[8.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 leading-none">
-                  <span className="w-1 h-1 rounded-full bg-emerald-500"></span>
+                <span className="hidden lg:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[8.5px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 leading-none">
+                  <span className="w-1 h-1 rounded-full bg-emerald-400"></span>
                   Secure
                 </span>
               </div>
-              <span className="text-slate-500 font-bold tracking-[0.18em] text-[7.5px] sm:text-[8.5px] uppercase mt-0.5 leading-tight">
+              <span className="text-slate-400 font-bold tracking-[0.18em] text-[7.5px] sm:text-[8.5px] uppercase mt-0.5 leading-tight">
                 CALLING PORTAL
               </span>
             </div>
@@ -182,12 +182,12 @@ export const Header: React.FC<HeaderProps> = ({
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder="Quick search customer name or phone..."
-                className="w-full pl-8 pr-7 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all font-medium"
+                className="w-full pl-8 pr-7 py-1 bg-slate-850 bg-slate-900/80 border border-slate-700/80 rounded-lg text-[11px] text-white placeholder-slate-400 focus:outline-none focus:bg-slate-900 focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all font-medium"
               />
               {searchQuery && (
                 <button
                   onClick={() => onSearchChange('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer"
                 >
                   ×
                 </button>
@@ -202,13 +202,13 @@ export const Header: React.FC<HeaderProps> = ({
               id="btn-refresh-dashboard"
               onClick={handleTriggerRefresh}
               disabled={isRefreshing}
-              className={`px-2 py-1 bg-slate-100 hover:bg-slate-200/80 active:scale-95 border border-slate-200 text-slate-700 text-[10px] sm:text-[11px] font-semibold rounded-lg sm:rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
-                isRefreshing ? 'opacity-80 text-blue-600' : ''
+              className={`px-2 py-1 bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700 text-slate-200 hover:text-white text-[10px] sm:text-[11px] font-semibold rounded-lg sm:rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                isRefreshing ? 'opacity-80 text-blue-400' : ''
               }`}
               title="Manually re-fetch and re-calculate roster metrics"
               aria-label="Refresh metrics and roster data"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-blue-600 shrink-0 ${isRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-blue-400 shrink-0 ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`} />
               <span className="hidden sm:inline text-[10px]">
                 {isRefreshing ? 'Syncing...' : 'Sync'}
               </span>
@@ -222,7 +222,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className={`flex items-center gap-1 px-2 py-1 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer border shrink-0 ${
                   isFocusModeActive
                     ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-xs'
-                    : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700'
+                    : 'bg-blue-950/70 hover:bg-blue-900/70 border-blue-700/60 text-blue-300 hover:text-blue-200'
                 }`}
                 title={isHQAdmin ? "Open Supervisors Performance Roll-Up Focus Mode" : "Toggle Focus Calling Mode speed-dial queue"}
               >
@@ -238,39 +238,39 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="relative shrink-0">
                 <button
                   onClick={() => setExportMenuOpen(!exportMenuOpen)}
-                  className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-[10px] sm:text-[11px] font-semibold rounded-lg sm:rounded-xl border border-slate-200 transition-colors cursor-pointer"
+                  className="flex items-center gap-1 px-2 py-1 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-[10px] sm:text-[11px] font-semibold rounded-lg sm:rounded-xl border border-slate-700 transition-colors cursor-pointer"
                   title="Export data and executive reports"
                 >
-                  <Download className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <Download className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                   <span className="hidden xs:inline">Export</span>
-                  <ChevronDown className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                  <ChevronDown className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                 </button>
 
                 {exportMenuOpen && (
                   <div 
-                    className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl py-1 z-50 text-xs animate-in fade-in zoom-in-95"
+                    className="absolute right-0 mt-2 w-44 bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl py-1 z-50 text-xs animate-in fade-in zoom-in-95"
                     onClick={() => setExportMenuOpen(false)}
                   >
                     <button
                       onClick={onExportExcel}
-                      className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
+                      className="w-full text-left px-3 py-1.5 hover:bg-slate-800 text-slate-200 flex items-center gap-2 transition-colors cursor-pointer"
                     >
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       <div>
-                        <div className="font-semibold text-xs text-slate-900">Excel (.xlsx)</div>
-                        <div className="text-[10px] text-slate-500">Filtered raw rows</div>
+                        <div className="font-semibold text-xs text-white">Excel (.xlsx)</div>
+                        <div className="text-[10px] text-slate-400">Filtered raw rows</div>
                       </div>
                     </button>
 
                     <button
                       id="btn-export-pdf-report"
                       onClick={onExportPdf}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-800 flex items-center gap-2.5 transition-colors cursor-pointer rounded-xl"
+                      className="w-full text-left px-3 py-2 hover:bg-slate-800 text-slate-200 flex items-center gap-2.5 transition-colors cursor-pointer rounded-xl"
                     >
-                      <Download className="w-4 h-4 text-red-600 shrink-0" />
+                      <Download className="w-4 h-4 text-red-400 shrink-0" />
                       <div>
-                        <div className="font-bold text-xs text-slate-900">PDF Report</div>
-                        <div className="text-[10px] text-slate-500">KPI tiles, branch list & charts</div>
+                        <div className="font-bold text-xs text-white">PDF Report</div>
+                        <div className="text-[10px] text-slate-400">KPI tiles, branch list & charts</div>
                       </div>
                     </button>
                   </div>
@@ -283,10 +283,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="btn-manage-users"
                 onClick={onOpenUserManagement}
-                className="hidden sm:flex px-2 py-1 bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-[10px] sm:text-[11px] font-medium rounded-lg sm:rounded-xl border border-slate-200 transition-colors items-center gap-1 cursor-pointer shrink-0"
+                className="hidden sm:flex px-2 py-1 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-[10px] sm:text-[11px] font-medium rounded-lg sm:rounded-xl border border-slate-700 transition-colors items-center gap-1 cursor-pointer shrink-0"
                 title="Manage team members and branches"
               >
-                <Users className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <Users className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                 <span className="hidden xl:inline">Personnel</span>
               </button>
             )}
@@ -295,10 +295,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               id="btn-view-login-screen"
               onClick={onLogout}
-              className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 text-slate-700 text-[10px] sm:text-[11px] font-medium rounded-lg sm:rounded-xl border border-slate-200 transition-colors cursor-pointer shrink-0"
+              className="flex items-center gap-1 px-2 py-1 bg-slate-800/90 hover:bg-rose-950/60 hover:text-rose-300 hover:border-rose-700/60 text-slate-200 text-[10px] sm:text-[11px] font-medium rounded-lg sm:rounded-xl border border-slate-700 transition-colors cursor-pointer shrink-0 group"
               title="Sign out and return to login screen"
             >
-              <LogOut className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <LogOut className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-400 shrink-0" />
               <span className="hidden md:inline">Sign Out</span>
             </button>
           </div>

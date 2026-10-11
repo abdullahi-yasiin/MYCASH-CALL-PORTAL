@@ -108,6 +108,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const handleResetPassword = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    // Password reset functionality is currently disabled pending email service setup
     setTimeout(() => {
       setIsLoading(false);
       setResetSubmitted(true);

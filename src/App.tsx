@@ -30,7 +30,8 @@ import {
   BranchInfo,
   CallStatus,
   RoleDefinition,
-  DeleteExcelTarget
+  DeleteExcelTarget,
+  isRecordAssignedBySupervisor
 } from './types';
 import { 
   INITIAL_BRANCHES, 
@@ -50,6 +51,8 @@ import { AdminSupervisorsTab } from './components/AdminSupervisorsTab';
 import { SupervisorTeamTab } from './components/SupervisorTeamTab';
 import { PrdViewerModal } from './components/PrdViewerModal';
 import { UserManagementModal } from './components/UserManagementModal';
+import { BulkUserImportModal } from './components/BulkUserImportModal';
+import { EmailConfigurationModal } from './components/EmailConfigurationModal';
 import { CustomerDetailDrawer } from './components/CustomerDetailDrawer';
 import { FocusCallingMode } from './components/FocusCallingMode';
 import { LoginPage } from './components/LoginPage';
@@ -62,7 +65,8 @@ import { PasswordForceChangeModal } from './components/PasswordForceChangeModal'
 import { DeleteExcelModal } from './components/DeleteExcelModal';
 import { SetTargetModal } from './components/SetTargetModal';
 import { SessionInactivityModal } from './components/SessionInactivityModal';
-import { supabaseDb } from './lib/supabase';
+import { AiIntelligenceModal } from './components/AiIntelligenceModal';
+import { supabase, supabaseDb, fromDBCustomerRecord } from './lib/supabase';
 
 // 30 Minutes Inactivity Session Rules
 // Close/End session only IF the session is not active for 30 minutes
@@ -98,7 +102,20 @@ export default function App() {
     const saved = localStorage.getItem('mycash_v3_branches');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed: BranchInfo[] = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(parsed.map(b => b.id));
+          const existingNames = new Set(parsed.map(b => b.name.toLowerCase()));
+          const missing = INITIAL_BRANCHES.filter(
+            b => !existingIds.has(b.id) && !existingNames.has(b.name.toLowerCase())
+          );
+          if (missing.length > 0) {
+            const merged = [...parsed, ...missing];
+            localStorage.setItem('mycash_v3_branches', JSON.stringify(merged));
+            return merged;
+          }
+          return parsed;
+        }
       } catch (e) {
         return INITIAL_BRANCHES;
       }
@@ -106,7 +123,20 @@ export default function App() {
     return INITIAL_BRANCHES;
   });
 
-  const [records, setRecords] = useState<CustomerRecord[]>([]);
+  const [records, setRecords] = useState<CustomerRecord[]>(() => {
+    const saved = localStorage.getItem('mycash_v3_records');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(fromDBCustomerRecord);
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return [];
+  });
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => {
     const saved = localStorage.getItem('mycash_v3_logs');
@@ -196,6 +226,7 @@ export default function App() {
 
   // Active top-level tab (for team members)
   const [activeTab, setActiveTab] = useState<'records' | 'adminAnalytics' | 'supervisorTeam' | 'appointments'>('records');
+  const [agentAppointmentSubTab, setAgentAppointmentSubTab] = useState<'all' | 'myBooked' | 'assignedBySupervisor'>('all');
 
   // Filters
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
@@ -205,6 +236,7 @@ export default function App() {
   const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
   const [importTargetAgentId, setImportTargetAgentId] = useState<string>('');
   const [isUserManagementOpen, setIsUserManagementOpen] = useState<boolean>(false);
+  const [isBulkUserImportOpen, setIsBulkUserImportOpen] = useState<boolean>(false);
   const [userManagementTab, setUserManagementTab] = useState<'users' | 'roles'>('users');
   const [userManagementShowAddForm, setUserManagementShowAddForm] = useState<boolean>(false);
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState<boolean>(false);
@@ -213,6 +245,8 @@ export default function App() {
   const [isSetTargetOpen, setIsSetTargetOpen] = useState<boolean>(false);
   const [targetAgentForModal, setTargetAgentForModal] = useState<User | null>(null);
   const [targetBranchForModal, setTargetBranchForModal] = useState<BranchInfo | null>(null);
+  const [isAiIntelligenceOpen, setIsAiIntelligenceOpen] = useState<boolean>(false);
+  const [isEmailConfigOpen, setIsEmailConfigOpen] = useState<boolean>(false);
 
   // Toast notification with type support
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -459,6 +493,31 @@ export default function App() {
     }
 
     initAutomatedSupabaseSync();
+
+    // Supabase Realtime synchronization for customer_records
+    const channel = supabase
+      .channel('realtime_customer_records')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'customer_records' },
+        async () => {
+          try {
+            console.log('[Supabase Realtime: Event] customer_records modified in backend. Refreshing...');
+            const remoteCustomers = await supabaseDb.fetchCustomers();
+            if (remoteCustomers !== null) {
+              setRecords(remoteCustomers);
+              localStorage.setItem('mycash_v3_records', JSON.stringify(remoteCustomers));
+            }
+          } catch (e) {
+            console.warn('[Supabase Realtime: Notice] Error refreshing records:', e);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Synchronize storage
@@ -495,15 +554,38 @@ export default function App() {
     return filterRecords(records, filters, currentUser);
   }, [records, filters, currentUser]);
 
+  // Agent Calling Queue records: Strictly original Excel roster leads, excluding records assigned by supervisor
+  const agentCallingQueueRecords = useMemo(() => {
+    if (currentUser?.role === 'TEAM_MEMBER') {
+      return filteredRecords.filter(r => !isRecordAssignedBySupervisor(r));
+    }
+    return filteredRecords;
+  }, [filteredRecords, currentUser]);
+
   // Calculated metrics adhering to Unique Call State Rule & Deduplication Logic
   const metrics = useMemo(() => {
+    if (currentUser?.role === 'TEAM_MEMBER') {
+      return calculateMetrics(agentCallingQueueRecords);
+    }
     return calculateMetrics(filteredRecords);
-  }, [filteredRecords]);
+  }, [filteredRecords, agentCallingQueueRecords, currentUser]);
 
-  // Appointments today or upcoming
+  // Appointments today or upcoming (for agent: both self-booked appointments and supervisor-assigned appointments)
   const upcomingAppointments = useMemo(() => {
-    return filteredRecords.filter(r => r.appointment && r.appointment.trim() !== '');
-  }, [filteredRecords]);
+    if (currentUser?.role === 'TEAM_MEMBER') {
+      return records.filter(r => {
+        const isAssignedToAgent = r.assignedAgentId === currentUser.id ||
+          (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === currentUser.name.trim().toLowerCase());
+        if (!isAssignedToAgent) return false;
+
+        const hasAppointment = Boolean(r.appointment && r.appointment.trim() !== '');
+        const isSupervisorAssigned = isRecordAssignedBySupervisor(r);
+
+        return hasAppointment || isSupervisorAssigned;
+      }).sort((a, b) => ((a.appointment || '') > (b.appointment || '') ? 1 : -1));
+    }
+    return filteredRecords.filter(r => (r.appointment && r.appointment.trim() !== '') || isRecordAssignedBySupervisor(r));
+  }, [records, filteredRecords, currentUser]);
 
   // Supervisors and Team Members lists
   const supervisorsList = useMemo(() => users.filter(u => u.role === 'SUPERVISOR'), [users]);
@@ -637,6 +719,57 @@ export default function App() {
     } catch (err: any) {
       console.error(`[User Creation: FATAL EXCEPTION] Unexpected error during creation flow:`, err);
       showToast(`Error creating user: ${err?.message || 'Unexpected network or database failure'}`, 'error');
+      console.groupEnd();
+      return false;
+    }
+  };
+
+  // Bulk import multiple users with transactional batch database upsert and audit logging
+  const handleCommitBulkUsers = async (importedUsers: User[], auditDetails: string): Promise<boolean> => {
+    console.group(`[Bulk Users Transaction: Count ${importedUsers.length}]`);
+    try {
+      // Step 1: Commit batch directly to Supabase cloud database
+      const dbRes = await supabaseDb.batchUpsertUsers(importedUsers);
+      if (!dbRes.success) {
+        console.error('[Bulk Users Transaction: Error] Supabase rejected batch:', dbRes.error);
+        showToast(`Database rejected bulk users: ${dbRes.error}`, 'error');
+        console.groupEnd();
+        return false;
+      }
+
+      // Step 2: Merge into local React state and local storage cache
+      setUsers(prev => {
+        const userMap = new Map(prev.map(u => [u.id, u]));
+        importedUsers.forEach(u => {
+          userMap.set(u.id, u);
+        });
+        const updated = Array.from(userMap.values());
+        localStorage.setItem('mycash_v3_users', JSON.stringify(updated));
+        return updated;
+      });
+
+      // Step 3: Insert comprehensive activity log
+      const bulkLog: ActivityLog = {
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.id || 'system',
+        userName: currentUser?.name || 'HQ Admin',
+        userRole: currentUser?.role || 'HQ_ADMIN',
+        recordId: `bulk-users-${Date.now()}`,
+        customerName: 'HQ User Administration',
+        action: 'STATUS_CHANGE',
+        details: auditDetails
+      };
+      setActivityLogs(prev => [bulkLog, ...prev]);
+      supabaseDb.insertActivityLog(bulkLog);
+
+      showToast(`Bulk imported ${importedUsers.length} user accounts successfully!`);
+      console.log('[Bulk Users Transaction: Complete] Successfully committed and synchronized.');
+      console.groupEnd();
+      return true;
+    } catch (err: any) {
+      console.error('[Bulk Users Transaction: Exception]', err);
+      showToast(`Error committing bulk users: ${err?.message || 'Transaction error'}`, 'error');
       console.groupEnd();
       return false;
     }
@@ -1075,6 +1208,7 @@ export default function App() {
           showToast('Dashboard metrics & customer roster synchronized.');
         }}
         onOpenProfileSettings={() => setIsProfileSettingsOpen(true)}
+        onOpenAiIntelligence={currentUser?.role === 'HQ_ADMIN' ? () => setIsAiIntelligenceOpen(true) : undefined}
       />
 
       {/* Main Container */}
@@ -1096,8 +1230,9 @@ export default function App() {
           ) : (
             /* AGENT / SUPERVISOR FOCUS CALLING SPEED-DIAL */
             <FocusCallingMode
-              records={filteredRecords}
+              records={currentUser.role === 'TEAM_MEMBER' ? agentCallingQueueRecords : filteredRecords}
               currentUser={currentUser}
+              teamMembers={teamMembersList}
               onUpdateRecord={handleUpdateRecord}
               onExit={() => setIsFocusModeActive(false)}
             />
@@ -1120,10 +1255,13 @@ export default function App() {
               setImportTargetAgentId(targetAgentId || '');
               setIsBulkImportOpen(true);
             }}
+            onOpenBulkUserImport={() => setIsBulkUserImportOpen(true)}
             onOpenUserManagement={() => setIsUserManagementOpen(true)}
             onOpenDeleteExcel={handleOpenDeleteExcelModal}
             onOpenSetAgentTarget={handleOpenSetAgentTarget}
             onOpenSetBranchTarget={handleOpenSetBranchTarget}
+            onOpenAiIntelligence={() => setIsAiIntelligenceOpen(true)}
+            onOpenEmailConfig={() => setIsEmailConfigOpen(true)}
           />
         ) : currentUser.role === 'SUPERVISOR' ? (
           /* ======================================================= */
@@ -1150,6 +1288,7 @@ export default function App() {
               setRecords(prev => [...prev]);
               showToast('Team performance metrics and records updated.');
             }}
+            onUpdateRecord={handleUpdateRecord}
           />
         ) : (
           /* ======================================================= */
@@ -1179,7 +1318,7 @@ export default function App() {
                   <span className={`px-1 sm:px-1.5 py-0.5 rounded-xs text-[9px] sm:text-[10px] font-bold ${
                     activeTab === 'records' ? 'bg-red-800 text-white' : 'bg-slate-200 text-slate-700'
                   }`}>
-                    {filteredRecords.length}
+                    {agentCallingQueueRecords.length}
                   </span>
                 </button>
 
@@ -1234,7 +1373,7 @@ export default function App() {
                 />
 
                 <DataTable
-                  records={filteredRecords}
+                  records={agentCallingQueueRecords}
                   currentUser={currentUser}
                   onUpdateRecord={handleUpdateRecord}
                   onOpenCustomerDrawer={(rec) => setDrawerRecord(rec)}
@@ -1248,33 +1387,110 @@ export default function App() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="bg-white border border-slate-200/90 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
-                      <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600" />
-                      Scheduled Follow-up & Callback Appointments
-                    </h3>
-                    <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">
-                      Customers assigned to you who requested callbacks
-                    </p>
-                  </div>
-                  <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 sm:px-3 sm:py-1 bg-red-50 text-red-700 border border-red-200 rounded-lg sm:rounded-xl self-start sm:self-auto">
-                    {upcomingAppointments.length} Booked Callbacks
-                  </span>
-                </div>
+                {(() => {
+                  const myBookedAppointments = upcomingAppointments.filter(r => !isRecordAssignedBySupervisor(r));
+                  const assignedBySupervisorAppointments = upcomingAppointments.filter(r => isRecordAssignedBySupervisor(r));
 
-                <DataTable
-                  records={upcomingAppointments}
-                  currentUser={currentUser}
-                  onUpdateRecord={handleUpdateRecord}
-                  onOpenCustomerDrawer={(rec) => setDrawerRecord(rec)}
-                  onRequestDeleteRecords={(ids) => handleOpenDeleteExcelModal({
-                    type: 'records',
-                    name: `${ids.length} Selected Customer Records`,
-                    recordCount: ids.length,
-                    recordIds: ids
-                  })}
-                />
+                  const activeAppointmentsList = 
+                    agentAppointmentSubTab === 'myBooked'
+                      ? myBookedAppointments
+                      : agentAppointmentSubTab === 'assignedBySupervisor'
+                      ? assignedBySupervisorAppointments
+                      : upcomingAppointments;
+
+                  return (
+                    <>
+                      <div className="bg-white border border-slate-200/90 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div>
+                          <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
+                            <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 shrink-0" />
+                            Scheduled Follow-up & Callback Appointments
+                          </h3>
+                          <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">
+                            Manage customer callbacks booked by you or assigned to you by your Supervisor
+                          </p>
+                        </div>
+
+                        {/* Subtab Pills */}
+                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs self-start md:self-auto flex-wrap">
+                          <button
+                            onClick={() => setAgentAppointmentSubTab('all')}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
+                              agentAppointmentSubTab === 'all'
+                                ? 'bg-white text-slate-900 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <span>All Callbacks</span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] ${
+                              agentAppointmentSubTab === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              {upcomingAppointments.length}
+                            </span>
+                          </button>
+
+                          <button
+                            onClick={() => setAgentAppointmentSubTab('myBooked')}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
+                              agentAppointmentSubTab === 'myBooked'
+                                ? 'bg-white text-slate-900 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <span>My Booked</span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] ${
+                              agentAppointmentSubTab === 'myBooked' ? 'bg-red-600 text-white' : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              {myBookedAppointments.length}
+                            </span>
+                          </button>
+
+                          <button
+                            onClick={() => setAgentAppointmentSubTab('assignedBySupervisor')}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
+                              agentAppointmentSubTab === 'assignedBySupervisor'
+                                ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                                : 'text-amber-900 hover:text-amber-950 bg-amber-50 border border-amber-200'
+                            }`}
+                          >
+                            <UserCheck className="w-3 h-3 text-amber-900 shrink-0" />
+                            <span>Assigned Appointments</span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] font-extrabold ${
+                              agentAppointmentSubTab === 'assignedBySupervisor' ? 'bg-slate-950 text-amber-300' : 'bg-amber-200 text-amber-900'
+                            }`}>
+                              {assignedBySupervisorAppointments.length}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {agentAppointmentSubTab === 'assignedBySupervisor' && (
+                        <div className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-xs text-amber-900 flex items-center gap-2.5 shadow-2xs">
+                          <UserCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                          <div>
+                            <span className="font-bold block">Assigned by Supervisor</span>
+                            <span className="text-[11px] text-amber-800">
+                              Showing customer appointments assigned or reassigned to you by your Supervisor for priority follow-up calling.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      <DataTable
+                        records={activeAppointmentsList}
+                        currentUser={currentUser}
+                        onUpdateRecord={handleUpdateRecord}
+                        onOpenCustomerDrawer={(rec) => setDrawerRecord(rec)}
+                        onRequestDeleteRecords={(ids) => handleOpenDeleteExcelModal({
+                          type: 'records',
+                          name: `${ids.length} Selected Customer Records`,
+                          recordCount: ids.length,
+                          recordIds: ids
+                        })}
+                      />
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -1349,7 +1565,29 @@ export default function App() {
         onDeleteUser={handleDeleteUser}
         onToggleUserActive={handleToggleUserActive}
         onUpdateRoleDefinitions={handleUpdateRoleDefinitions}
+        onOpenBulkUserImport={() => setIsBulkUserImportOpen(true)}
       />
+
+      {currentUser?.role === 'HQ_ADMIN' && (
+        <BulkUserImportModal
+          isOpen={isBulkUserImportOpen}
+          onClose={() => setIsBulkUserImportOpen(false)}
+          currentUser={currentUser}
+          allUsers={users}
+          branches={branches}
+          onCommitBulkUsers={handleCommitBulkUsers}
+        />
+      )}
+
+      {currentUser?.role === 'HQ_ADMIN' && (
+        <EmailConfigurationModal
+          isOpen={isEmailConfigOpen}
+          onClose={() => setIsEmailConfigOpen(false)}
+          users={users}
+          currentUser={currentUser}
+          onShowToast={(msg) => setToast({ message: msg, type: 'success' })}
+        />
+      )}
 
       {/* Customer Detail Drawer */}
       <CustomerDetailDrawer
@@ -1372,6 +1610,7 @@ export default function App() {
         currentUser={currentUser}
         onUpdateRecord={handleUpdateRecord}
         onDeleteExcel={(target) => handleOpenDeleteExcelModal(target)}
+        teamMembers={teamMembersList}
       />
 
       {/* Delete Excel & Customer Records Confirmation Modal (Exclusive to HQ Admin) */}
@@ -1428,6 +1667,18 @@ export default function App() {
         onStayLoggedIn={() => recordActivity(true)}
         onLogoutNow={handleSessionTimeout}
       />
+
+      {/* AI Intelligence & Customer Feedback Analytics Modal (HQ Admin Only) */}
+      {currentUser?.role === 'HQ_ADMIN' && (
+        <AiIntelligenceModal
+          isOpen={isAiIntelligenceOpen}
+          onClose={() => setIsAiIntelligenceOpen(false)}
+          currentUser={currentUser}
+          allBranches={branches}
+          allAgents={teamMembersList}
+          records={records}
+        />
+      )}
     </div>
   );
 }

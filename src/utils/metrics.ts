@@ -52,13 +52,26 @@ export function filterRecords(
   return records.filter(record => {
     // 1. Role-based scoping:
     if (currentUser.role === 'TEAM_MEMBER') {
-      // Team members only see assigned records
-      if (record.assignedAgentId !== currentUser.id) {
+      // Team members only see assigned records (matched by id or name)
+      const matchId = record.assignedAgentId === currentUser.id;
+      const matchName = Boolean(
+        record.assignedAgentName &&
+        currentUser.name &&
+        (record.assignedAgentName.trim().toLowerCase() === currentUser.name.trim().toLowerCase() ||
+         record.assignedAgentName.trim().toLowerCase().includes(currentUser.name.trim().toLowerCase()) ||
+         currentUser.name.trim().toLowerCase().includes(record.assignedAgentName.trim().toLowerCase()))
+      );
+      if (!matchId && !matchName) {
         return false;
       }
     } else if (currentUser.role === 'SUPERVISOR') {
-      // Supervisors only see records in their branch/region
-      if (record.areaOfReg !== currentUser.branch && record.supervisorId !== currentUser.id) {
+      // Supervisors see records in their branch/region or assigned to them/their agents
+      const matchSupervisorId = Boolean(record.supervisorId && record.supervisorId === currentUser.id);
+      const matchAreaExact = record.areaOfReg === currentUser.branch;
+      const bClean = (currentUser.branch || '').toLowerCase().replace(/branch|hub|central|[_-\s]+/gi, '').trim();
+      const rClean = (record.areaOfReg || '').toLowerCase().replace(/[_-\s]+/g, '').trim();
+      const matchAreaFuzzy = Boolean(bClean.length >= 3 && (rClean.includes(bClean) || bClean.includes(rClean)));
+      if (!matchSupervisorId && !matchAreaExact && !matchAreaFuzzy) {
         return false;
       }
     }
@@ -73,9 +86,15 @@ export function filterRecords(
       if (!record.callDate || record.callDate > filters.dateEnd) return false;
     }
 
-    // Branch / Area filter
+    // Branch / Area filter with fuzzy Somali branch name matching
     if (filters.branches.length > 0) {
-      if (!filters.branches.includes(record.areaOfReg)) return false;
+      const match = filters.branches.some(b => {
+        if (b === record.areaOfReg) return true;
+        const bClean = b.toLowerCase().replace(/branch|hub|central|[_-\s]+/gi, '').trim();
+        const rClean = (record.areaOfReg || '').toLowerCase().replace(/[_-\s]+/g, '').trim();
+        return bClean.length >= 3 && (rClean.includes(bClean) || bClean.includes(rClean));
+      });
+      if (!match) return false;
     }
 
     // Supervisor filter

@@ -19,7 +19,8 @@ import {
   Search,
   Lock,
   Unlock,
-  AlertCircle
+  AlertCircle,
+  UploadCloud
 } from 'lucide-react';
 import { User, UserRole, BranchInfo, RoleDefinition, AppPermission } from '../types';
 import { ALL_PERMISSIONS, INITIAL_ROLE_DEFINITIONS, checkUserPermission } from '../data/rolesPermissions';
@@ -38,6 +39,7 @@ interface UserManagementModalProps {
   onDeleteUser: (userId: string) => void;
   onToggleUserActive: (userId: string) => void;
   onUpdateRoleDefinitions: (roles: RoleDefinition[]) => void;
+  onOpenBulkUserImport?: () => void;
 }
 
 export const UserManagementModal: React.FC<UserManagementModalProps> = ({
@@ -53,7 +55,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   onUpdateUser,
   onDeleteUser,
   onToggleUserActive,
-  onUpdateRoleDefinitions
+  onUpdateRoleDefinitions,
+  onOpenBulkUserImport
 }) => {
   const [activeTab, setActiveTab] = useState<'users' | 'roles'>(initialTab);
   const [showAddForm, setShowAddForm] = useState<boolean>(initialShowAddForm);
@@ -349,7 +352,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
               </h3>
               <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 leading-tight sm:leading-normal">
                 {isHQAdmin 
-                  ? 'Manage personnel across all 24 branches and dynamically configure role permission matrix.'
+                  ? `Manage personnel across all ${branches.length} branches and dynamically configure role permission matrix.`
                   : `Team management and agent roster for ${currentUser.branch}`}
               </p>
             </div>
@@ -400,14 +403,27 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           </div>
 
           {activeTab === 'users' && (
-            <button
-              id="btn-add-new-user-open"
-              onClick={handleOpenAddForm}
-              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-[11px] sm:text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-colors sm:mb-2 active:scale-95 cursor-pointer"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>Add New User</span>
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto sm:mb-2">
+              {isHQAdmin && onOpenBulkUserImport && (
+                <button
+                  id="btn-open-bulk-user-import-modal"
+                  onClick={onOpenBulkUserImport}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white text-[11px] sm:text-xs font-bold rounded-lg sm:rounded-xl border border-slate-700 shadow-xs transition-colors active:scale-95 cursor-pointer"
+                  title="Bulk upload users via Excel, Word Doc, or PDF (HQ Admin only)"
+                >
+                  <UploadCloud className="w-3.5 h-3.5 text-red-400" />
+                  <span>Bulk User Import</span>
+                </button>
+              )}
+              <button
+                id="btn-add-new-user-open"
+                onClick={handleOpenAddForm}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-[11px] sm:text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-colors active:scale-95 cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Add New User</span>
+              </button>
+            </div>
           )}
 
           {activeTab === 'roles' && isHQAdmin && (
@@ -537,7 +553,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="e.g. sahal.barre@mycash.portal"
+                        placeholder="e.g mohamed@gmail.com"
                         className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:ring-1 focus:ring-blue-500 font-medium"
                       />
                     </div>

@@ -12,7 +12,7 @@ import {
   TrendingUp,
   FileSpreadsheet
 } from 'lucide-react';
-import { User, CustomerRecord, ActivityLog } from '../types';
+import { User, CustomerRecord, ActivityLog, isRecordAssignedBySupervisor } from '../types';
 
 interface SupervisorTeamTabProps {
   currentUser: User;
@@ -40,7 +40,10 @@ export const SupervisorTeamTab: React.FC<SupervisorTeamTabProps> = ({
 
   // Compute metrics per team member
   const agentPerformance = branchTeamMembers.map(agent => {
-    const agentRecords = records.filter(r => r.assignedAgentId === agent.id);
+    const agentRecords = records.filter(r => 
+      (r.assignedAgentId === agent.id || (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase())) &&
+      !isRecordAssignedBySupervisor(r)
+    );
     const called = agentRecords.filter(r => r.hasBeenCalled || (r.status && r.status !== 'Uncalled')).length;
     const success = agentRecords.filter(r => r.status === 'Success').length;
     const inProgress = agentRecords.filter(r => r.status === 'In-progress').length;

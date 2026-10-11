@@ -19,9 +19,10 @@ import {
   Maximize2,
   RotateCcw,
   Type,
-  Trash2
+  Trash2,
+  UserCheck
 } from 'lucide-react';
-import { CustomerRecord, CallStatus, User } from '../types';
+import { CustomerRecord, CallStatus, User, isRecordAssignedBySupervisor } from '../types';
 
 export type ColumnKey = 
   | 'select' 
@@ -770,7 +771,7 @@ export const DataTable: React.FC<DataTableProps> = ({
                     {/* Appointment (Editable by All) */}
                     <td 
                       style={{ width: `${columnWidths.appointment}px` }}
-                      className={`${pyClass} px-3 overflow-hidden`}
+                      className={`${pyClass} px-3 overflow-hidden align-top`}
                     >
                       <input
                         type="datetime-local"
@@ -781,20 +782,31 @@ export const DataTable: React.FC<DataTableProps> = ({
                           record.appointment ? 'border-red-300 bg-red-50/40 text-red-900 font-semibold' : 'border-slate-200'
                         }`}
                       />
+                      {isRecordAssignedBySupervisor(record) && (
+                        <div className="mt-1">
+                          <span 
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-amber-50 text-amber-900 border border-amber-300/80 shadow-2xs whitespace-nowrap"
+                            title={`Assigned by supervisor${record.reassignedFromAgentName ? ` (Reassigned from ${record.reassignedFromAgentName})` : ''}`}
+                          >
+                            <UserCheck className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                            <span>Assigned by Supervisor</span>
+                          </span>
+                        </div>
+                      )}
                     </td>
 
-                    {/* Feedback Note (Editable by All) */}
+                    {/* Feedback Note (Editable by All - Wraps down if long) */}
                     <td 
                       style={{ width: `${columnWidths.feedbackNote}px` }}
-                      className={`${pyClass} px-3 overflow-hidden`}
+                      className={`${pyClass} px-3 overflow-hidden align-top`}
                     >
-                      <div className="flex items-center gap-1.5 w-full">
-                        <span className="truncate text-slate-600 text-xs flex-1">
-                          {record.feedbackNote || <span className="text-slate-400 italic">No notes logged...</span>}
-                        </span>
+                      <div className="flex items-start gap-1.5 w-full">
+                        <div className="flex-1 whitespace-normal break-words [overflow-wrap:anywhere] [word-break:break-word] text-slate-700 text-xs leading-relaxed max-h-28 overflow-y-auto custom-scrollbar font-medium">
+                          {record.feedbackNote || <span className="text-slate-400 italic font-normal">No notes logged...</span>}
+                        </div>
                         <button
                           onClick={(e) => handleOpenNoteModal(record, 'feedbackNote', e)}
-                          className="p-1 hover:bg-slate-200 text-blue-600 rounded transition-colors shrink-0 cursor-pointer"
+                          className="p-1 hover:bg-slate-200 text-blue-600 rounded transition-colors shrink-0 cursor-pointer mt-0.5"
                           title="Edit qualitative customer feedback"
                         >
                           <MessageSquare className="w-3.5 h-3.5" />
@@ -802,28 +814,28 @@ export const DataTable: React.FC<DataTableProps> = ({
                       </div>
                     </td>
 
-                    {/* Supervisor Note (Admin, Supervisor) */}
+                    {/* Supervisor Note (Admin, Supervisor - Wraps down if long) */}
                     <td 
                       style={{ width: `${columnWidths.supervisorNote}px` }}
-                      className={`${pyClass} px-3 overflow-hidden`}
+                      className={`${pyClass} px-3 overflow-hidden align-top`}
                     >
                       {canEditSupervisorNote ? (
-                        <div className="flex items-center gap-1.5 w-full">
-                          <span className="truncate text-slate-600 text-xs flex-1">
-                            {record.supervisorNote || <span className="text-slate-400 italic">No directive...</span>}
-                          </span>
+                        <div className="flex items-start gap-1.5 w-full">
+                          <div className="flex-1 whitespace-pre-wrap break-words text-slate-700 text-xs leading-relaxed max-h-28 overflow-y-auto custom-scrollbar font-medium">
+                            {record.supervisorNote || <span className="text-slate-400 italic font-normal">No directive...</span>}
+                          </div>
                           <button
                             onClick={(e) => handleOpenNoteModal(record, 'supervisorNote', e)}
-                            className="p-1 hover:bg-slate-200 text-red-600 rounded transition-colors shrink-0 cursor-pointer"
+                            className="p-1 hover:bg-slate-200 text-red-600 rounded transition-colors shrink-0 cursor-pointer mt-0.5"
                             title="Edit supervisor directive"
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1 text-slate-400 truncate">
-                          <Lock className="w-3 h-3 text-slate-400 shrink-0" />
-                          <span className="truncate italic">{record.supervisorNote || 'Locked'}</span>
+                        <div className="flex items-start gap-1 text-slate-500 text-xs leading-relaxed max-h-28 overflow-y-auto custom-scrollbar whitespace-pre-wrap break-words">
+                          <Lock className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                          <span className="italic">{record.supervisorNote || 'Locked'}</span>
                         </div>
                       )}
                     </td>

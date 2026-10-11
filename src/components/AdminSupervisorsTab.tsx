@@ -22,7 +22,7 @@ import {
   Legend, 
   CartesianGrid 
 } from 'recharts';
-import { BranchInfo, User, CustomerRecord } from '../types';
+import { BranchInfo, User, CustomerRecord, isRecordAssignedBySupervisor } from '../types';
 
 interface AdminSupervisorsTabProps {
   branches: BranchInfo[];
@@ -100,7 +100,10 @@ export const AdminSupervisorsTab: React.FC<AdminSupervisorsTabProps> = ({
 
   // Compute metrics per team member
   const agentMetrics = teamMembers.map(agent => {
-    const agentRecords = records.filter(r => r.assignedAgentId === agent.id);
+    const agentRecords = records.filter(r => 
+      (r.assignedAgentId === agent.id || (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase())) &&
+      !isRecordAssignedBySupervisor(r)
+    );
     const called = agentRecords.filter(r => r.hasBeenCalled || (r.status && r.status !== 'Uncalled')).length;
     const success = agentRecords.filter(r => r.status === 'Success').length;
     const inProgress = agentRecords.filter(r => r.status === 'In-progress').length;

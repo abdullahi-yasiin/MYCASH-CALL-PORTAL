@@ -25,3 +25,48 @@
 .col-resizer {
   touch-action: none;
 }
+
+/* Gemini AI Custom Keyframes & Motion */
+@keyframes gemini-aurora-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes gemini-aurora-pulse {
+  0%, 100% {
+    transform: scale(0.95);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.95;
+  }
+}
+
+@keyframes gemini-gradient-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes gemini-shimmer-sweep {
+  0% { transform: translateX(-150%); }
+  100% { transform: translateX(250%); }
+}
+
+.animate-gemini-spin {
+  animation: gemini-aurora-spin 10s linear infinite;
+}
+
+.animate-gemini-pulse {
+  animation: gemini-aurora-pulse 3.5s ease-in-out infinite;
+}
+
+.animate-gemini-gradient {
+  background-size: 200% 200%;
+  animation: gemini-gradient-flow 4s ease infinite;
+}
+
+.animate-gemini-shimmer {
+  animation: gemini-shimmer-sweep 2.2s infinite ease-in-out;
+}

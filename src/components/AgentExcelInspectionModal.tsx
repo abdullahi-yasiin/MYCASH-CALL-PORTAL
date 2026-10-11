@@ -16,9 +16,10 @@ import {
   PhoneOff,
   XCircle,
   AlertCircle,
-  Trash2
+  Trash2,
+  UserCheck
 } from 'lucide-react';
-import { User, CustomerRecord, CallStatus, DeleteExcelTarget } from '../types';
+import { User, CustomerRecord, CallStatus, DeleteExcelTarget, isRecordAssignedBySupervisor } from '../types';
 import { exportToExcel } from '../utils/exportEngine';
 
 interface AgentExcelInspectionModalProps {
@@ -30,6 +31,7 @@ interface AgentExcelInspectionModalProps {
   currentUser: User;
   onUpdateRecord?: (record: CustomerRecord, changeDetails: string) => void;
   onDeleteExcel?: (target: DeleteExcelTarget) => void;
+  teamMembers?: User[];
 }
 
 export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps> = ({
@@ -40,32 +42,46 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
   records,
   currentUser,
   onUpdateRecord,
-  onDeleteExcel
+  onDeleteExcel,
+  teamMembers = []
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [reassigningRecord, setReassigningRecord] = useState<CustomerRecord | null>(null);
+  const [targetAgentId, setTargetAgentId] = useState<string>('');
+  const [directiveNote, setDirectiveNote] = useState<string>('');
 
   // Close on Escape key
   React.useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (reassigningRecord) {
+          setReassigningRecord(null);
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, reassigningRecord]);
 
-  // Filter records belonging to this specific agent (by ID or assigned name fallback)
+  // Filter records belonging strictly to this specific agent's uploaded Excel roster (excluding supervisor-assigned records)
   const agentRecords = useMemo(() => {
     if (!agent) return [];
     return records.filter(
-      r => r.assignedAgentId === agent.id || 
-      (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase())
+      r => (r.assignedAgentId === agent.id || 
+      (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase())) &&
+      !isRecordAssignedBySupervisor(r)
     );
   }, [records, agent]);
+
+  // Available target agents for reassignment
+  const availableTargetAgents = useMemo(() => {
+    return teamMembers.filter(m => m.id !== agent?.id && m.role === 'TEAM_MEMBER');
+  }, [teamMembers, agent]);
 
   // Applied local filter
   const displayedRecords = useMemo(() => {
@@ -285,12 +301,15 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
                 <th className="py-1.5 px-2">Appointment</th>
                 <th className="py-1.5 px-2">Agent Feedback</th>
                 <th className="py-1.5 px-2">Supervisor Note</th>
+                {(currentUser.role === 'SUPERVISOR' || currentUser.role === 'HQ_ADMIN') && (
+                  <th className="py-1.5 px-2 text-center">Action</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {displayedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-slate-400 text-[11px]">
+                  <td colSpan={(currentUser.role === 'SUPERVISOR' || currentUser.role === 'HQ_ADMIN') ? 9 : 8} className="py-10 text-center text-slate-400 text-[11px]">
                     <AlertCircle className="w-5 h-5 mx-auto mb-1 text-slate-300" />
                     No records match the current filter in this agent's Excel.
                   </td>
@@ -336,18 +355,35 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
                         <span className="text-slate-400 italic text-[9px]">-</span>
                       )}
                     </td>
-                    <td className="py-1.5 px-2 max-w-xs text-slate-700 text-[11px] truncate" title={r.feedbackNote}>
+                    <td className="py-2 px-2.5 max-w-xs text-slate-700 text-[11px] whitespace-pre-wrap break-words leading-relaxed">
                       {r.feedbackNote || <span className="text-slate-400 italic">No notes logged</span>}
                     </td>
-                    <td className="py-1.5 px-2 max-w-xs text-[11px]">
+                    <td className="py-2 px-2.5 max-w-xs text-[11px] whitespace-pre-wrap break-words leading-relaxed">
                       {r.supervisorNote ? (
-                        <span className="text-red-900 font-medium truncate block" title={r.supervisorNote}>
+                        <span className="text-red-900 font-medium block">
                           {r.supervisorNote}
                         </span>
                       ) : (
                         <span className="text-slate-400 italic">No directive</span>
                       )}
                     </td>
+                    {(currentUser.role === 'SUPERVISOR' || currentUser.role === 'HQ_ADMIN') && (
+                      <td className="py-1.5 px-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReassigningRecord(r);
+                            setTargetAgentId('');
+                            setDirectiveNote('');
+                          }}
+                          className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                          title="Assign this customer record to another agent"
+                        >
+                          <UserCheck className="w-2.5 h-2.5" />
+                          <span>Assign</span>
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -370,6 +406,127 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
         </div>
 
       </div>
+
+      {/* Reassign / Assign Modal */}
+      {reassigningRecord && (
+        <div className="fixed inset-0 z-60 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 text-sm">Assign Customer Record</h4>
+                  <p className="text-[10px] text-slate-500">Assign to another agent (moves to their Assigned Appointments)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReassigningRecord(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs space-y-1.5">
+              <div>
+                <span className="text-slate-500 font-medium">Customer: </span>
+                <strong className="text-slate-900 font-bold">{reassigningRecord.customerName}</strong> ({reassigningRecord.phoneNumber})
+              </div>
+              <div>
+                <span className="text-slate-500 font-medium">Current Agent: </span>
+                <strong className="text-slate-800">{agent?.name}</strong>
+              </div>
+              {reassigningRecord.feedbackNote && (
+                <div>
+                  <span className="text-slate-500 font-medium">Feedback Note: </span>
+                  <span className="text-slate-700 italic">{reassigningRecord.feedbackNote}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Assign To Agent <span className="text-red-600">*</span>
+                </label>
+                <select
+                  value={targetAgentId}
+                  onChange={(e) => setTargetAgentId(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="">-- Select Team Member --</option>
+                  {availableTargetAgents.map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.branch})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Supervisor Directive / Note (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={directiveNote}
+                  onChange={(e) => setDirectiveNote(e.target.value)}
+                  placeholder="e.g. Please follow up on this customer immediately..."
+                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setReassigningRecord(null)}
+                className="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-xl font-bold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!targetAgentId}
+                onClick={() => {
+                  const targetAgent = availableTargetAgents.find(a => a.id === targetAgentId);
+                  if (!targetAgent || !agent) return;
+
+                  const updated: CustomerRecord = {
+                    ...reassigningRecord,
+                    assignedAgentId: targetAgent.id,
+                    assignedAgentName: targetAgent.name,
+                    appointmentAssignedBySupervisor: true,
+                    reassignedFromAgentId: agent.id,
+                    reassignedFromAgentName: agent.name,
+                    reassignedAt: new Date().toISOString(),
+                    appointment: (reassigningRecord.appointment && reassigningRecord.appointment.trim() !== '')
+                      ? reassigningRecord.appointment
+                      : new Date().toISOString().slice(0, 16),
+                    supervisorNote: directiveNote.trim() 
+                      ? directiveNote.trim() 
+                      : `Assigned to ${targetAgent.name} by Supervisor ${currentUser.name}`,
+                    updatedAt: new Date().toISOString()
+                  };
+
+                  if (onUpdateRecord) {
+                    onUpdateRecord(updated, `Supervisor assigned customer record for ${reassigningRecord.customerName} to ${targetAgent.name}`);
+                  }
+
+                  setReassigningRecord(null);
+                }}
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 active:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs transition-all cursor-pointer"
+              >
+                Confirm Assignment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

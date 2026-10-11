@@ -18,7 +18,7 @@ export const ALL_PERMISSIONS: PermissionMeta[] = [
     key: 'VIEW_ALL_BRANCHES',
     label: 'Global Multi-Branch Access',
     category: 'Administration',
-    description: 'Access telemetry, reports, and records across all 24 regional branches.'
+    description: 'Access telemetry, reports, and records across all regional branches.'
   },
   {
     key: 'EDIT_SYSTEM_TARGETS',

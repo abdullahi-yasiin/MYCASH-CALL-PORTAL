@@ -32,7 +32,7 @@ import {
   Tooltip, 
   CartesianGrid 
 } from 'recharts';
-import { User, CustomerRecord, BranchInfo, ActivityLog } from '../types';
+import { User, CustomerRecord, BranchInfo, ActivityLog, isRecordAssignedBySupervisor } from '../types';
 
 interface SupervisorsFocusRollUpProps {
   supervisors: User[];
@@ -87,8 +87,12 @@ export const SupervisorsFocusRollUp: React.FC<SupervisorsFocusRollUpProps> = ({
 
       // Records belonging to supervisor's team
       const teamAgentIds = new Set(team.map(t => t.id));
+      const teamAgentNames = new Set(team.map(t => t.name.toLowerCase().trim()));
       const teamRecords = records.filter(
-        r => teamAgentIds.has(r.assignedAgentId) || r.supervisorId === sup.id || r.areaOfReg === sup.branch
+        r => teamAgentIds.has(r.assignedAgentId) || 
+             (r.assignedAgentName && teamAgentNames.has(r.assignedAgentName.toLowerCase().trim())) ||
+             r.supervisorId === sup.id || 
+             r.areaOfReg === sup.branch
       );
 
       const totalLeads = teamRecords.length;
@@ -104,7 +108,10 @@ export const SupervisorsFocusRollUp: React.FC<SupervisorsFocusRollUpProps> = ({
 
       // Per-agent metrics within this supervisor's team
       const agentsMetrics = team.map(agent => {
-        const agentRecords = records.filter(r => r.assignedAgentId === agent.id);
+        const agentRecords = records.filter(r => 
+          (r.assignedAgentId === agent.id || (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase())) &&
+          !isRecordAssignedBySupervisor(r)
+        );
         const aTotal = agentRecords.length;
         const aCalled = agentRecords.filter(r => r.hasBeenCalled || (r.status && r.status !== 'Uncalled')).length;
         const aUncalled = agentRecords.filter(r => !r.hasBeenCalled && (!r.status || r.status === 'Uncalled')).length;
@@ -236,7 +243,7 @@ export const SupervisorsFocusRollUp: React.FC<SupervisorsFocusRollUpProps> = ({
           {/* Quick exit on mobile */}
           <button
             onClick={onExit}
-            className="hidden px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold rounded-lg border border-slate-700 cursor-pointer shrink-0"
+            className="md:hidden px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold rounded-lg border border-slate-700 cursor-pointer shrink-0"
           >
             Exit
           </button>
@@ -244,33 +251,33 @@ export const SupervisorsFocusRollUp: React.FC<SupervisorsFocusRollUpProps> = ({
 
         {/* Back and Forth Carousel Controller */}
         <div className="flex items-center justify-between md:justify-end gap-2 sm:gap-3 w-full md:w-auto pt-2.5 md:pt-0 border-t border-slate-800/80 md:border-t-0">
-          <div className="text-left md:text-right">
+          <div className="text-left md:text-right shrink-0">
             <div className="text-[10px] sm:text-xs font-bold text-slate-200">
               Sup. {currentIndex + 1} / {supervisors.length}
             </div>
-            <div className="text-[8.5px] text-amber-400 font-medium md:hidden truncate max-w-[120px]">
+            <div className="text-[8.5px] text-amber-400 font-medium md:hidden truncate max-w-[100px] xs:max-w-[120px]">
               {activeData.supervisor.branch}
             </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl sm:rounded-2xl border border-slate-700/90 shadow-inner">
+          <div className="flex items-center gap-1 bg-slate-800/90 p-0.5 sm:p-1 rounded-xl sm:rounded-2xl border border-slate-700/90 shadow-inner">
             <button
               id="btn-scroll-supervisor-prev"
               onClick={handlePrev}
-              className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-slate-700 hover:bg-amber-500 hover:text-slate-950 text-white transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1"
+              className="px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-slate-700 hover:bg-amber-500 hover:text-slate-950 text-white transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-0.5 sm:gap-1"
               title="Previous (Arrow Left)"
             >
-              <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               <span className="text-[10px] sm:text-xs font-bold sm:hidden">Prev</span>
             </button>
 
             {/* Supervisor Selector Pills / Jump */}
-            <div className="flex items-center gap-0.5 px-0.5 max-w-[90px] xs:max-w-[130px] sm:max-w-xs overflow-x-auto py-0.5 custom-scrollbar">
+            <div className="flex items-center gap-0.5 px-0.5 max-w-[85px] xs:max-w-[130px] sm:max-w-xs overflow-x-auto py-0.5 custom-scrollbar">
               {supervisors.map((s, idx) => (
                 <button
                   key={s.id}
                   onClick={() => setCurrentIndex(idx)}
-                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl text-[9px] sm:text-xs font-black transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                  className={`w-5 h-5 xs:w-6 xs:h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-xl text-[8.5px] xs:text-[9px] sm:text-xs font-black transition-all cursor-pointer flex items-center justify-center shrink-0 ${
                     idx === currentIndex
                       ? 'bg-amber-400 text-slate-950 shadow-md font-extrabold scale-105'
                       : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
@@ -285,11 +292,11 @@ export const SupervisorsFocusRollUp: React.FC<SupervisorsFocusRollUpProps> = ({
             <button
               id="btn-scroll-supervisor-next"
               onClick={handleNext}
-              className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-slate-700 hover:bg-amber-500 hover:text-slate-950 text-white transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-1"
+              className="px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-slate-700 hover:bg-amber-500 hover:text-slate-950 text-white transition-all cursor-pointer shadow-xs active:scale-95 flex items-center gap-0.5 sm:gap-1"
               title="Next (Arrow Right)"
             >
               <span className="text-[10px] sm:text-xs font-bold sm:hidden">Next</span>
-              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             </button>
           </div>
 
@@ -521,17 +528,17 @@ export const SupervisorsFocusRollUp: React.FC<SupervisorsFocusRollUpProps> = ({
 
         {/* Visual Outcome Distribution for this Supervisor's Team */}
         {chartData.length > 0 && (
-          <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-blue-600" />
-                Team Calling Performance Breakdown
+          <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl sm:rounded-2xl p-2.5 sm:p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 mb-2 sm:mb-3">
+              <h4 className="text-[10px] xs:text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 sm:gap-2">
+                <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 shrink-0" />
+                <span className="truncate">Team Calling Performance Breakdown</span>
               </h4>
-              <span className="text-[11px] text-slate-500 font-medium">
+              <span className="text-[9.5px] xs:text-[10px] sm:text-[11px] text-slate-500 font-medium truncate block sm:inline">
                 {activeData.team.length} Active Agents Under {activeData.supervisor.name}
               </span>
             </div>
-            <div className="h-44 w-full">
+            <div className="h-36 sm:h-44 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -681,10 +688,10 @@ export const SupervisorsFocusRollUp: React.FC<SupervisorsFocusRollUpProps> = ({
                               e.stopPropagation();
                               onInspectAgentExcel(a.agent);
                             }}
-                            className="px-2 py-1 text-[10px] font-semibold text-blue-600 hover:text-white hover:bg-blue-600 rounded border border-blue-200 hover:border-blue-600 transition-all flex items-center gap-1 mx-auto cursor-pointer"
+                            className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[9.5px] sm:text-[10px] font-semibold text-blue-600 hover:text-white hover:bg-blue-600 rounded border border-blue-200 hover:border-blue-600 transition-all flex items-center justify-center gap-1 mx-auto cursor-pointer whitespace-nowrap active:scale-95"
                             title={`Inspect ${a.name}'s customer roster`}
                           >
-                            <Eye className="w-3 h-3 pointer-events-none" />
+                            <Eye className="w-3 h-3 pointer-events-none shrink-0" />
                             <span className="pointer-events-none">Inspect</span>
                           </button>
                         </td>

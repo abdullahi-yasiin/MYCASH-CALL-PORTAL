@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { CustomerRecord, User, ActivityLog, RoleDefinition } from '../types';
+import { CustomerRecord, User, ActivityLog, RoleDefinition, isRecordAssignedBySupervisor } from '../types';
 
 // Helper to sanitize Supabase URL (strips trailing slashes, accidental /rest/v1 paths, or whitespace)
 export function sanitizeSupabaseUrl(rawUrl: string | undefined): string {
@@ -43,6 +43,20 @@ export interface SupabaseSyncStatus {
 
 // Convert camelCase CustomerRecord to snake_case DB row
 export function toDBCustomerRecord(record: CustomerRecord) {
+  // If assigned or reassigned by supervisor, embed metadata tag in supervisor_note so it survives Supabase storage
+  let finalSupervisorNote = record.supervisorNote || '';
+  if (isRecordAssignedBySupervisor(record)) {
+    const metaPayload = {
+      assigned: true,
+      fromId: record.reassignedFromAgentId || '',
+      fromName: record.reassignedFromAgentName || '',
+      at: record.reassignedAt || ''
+    };
+    // Strip any existing tag first to avoid duplicate tags
+    const cleanNote = finalSupervisorNote.replace(/^\[SUP_ASSIGN:[^\]]+\]\s*/, '').trim();
+    finalSupervisorNote = `[SUP_ASSIGN:${JSON.stringify(metaPayload)}] ${cleanNote}`.trim();
+  }
+
   return {
     id: record.id,
     customer_name: record.customerName,
@@ -52,7 +66,7 @@ export function toDBCustomerRecord(record: CustomerRecord) {
     status: record.status,
     appointment: record.appointment || '',
     feedback_note: record.feedbackNote || '',
-    supervisor_note: record.supervisorNote || '',
+    supervisor_note: finalSupervisorNote,
     assigned_agent_id: record.assignedAgentId || '',
     assigned_agent_name: record.assignedAgentName || '',
     supervisor_id: record.supervisorId || '',
@@ -66,6 +80,43 @@ export function toDBCustomerRecord(record: CustomerRecord) {
 
 // Convert snake_case DB row to camelCase CustomerRecord
 export function fromDBCustomerRecord(row: any): CustomerRecord {
+  let appointmentAssignedBySupervisor = Boolean(row.appointment_assigned_by_supervisor ?? row.appointmentAssignedBySupervisor);
+  let reassignedFromAgentId: string | undefined = row.reassigned_from_agent_id || row.reassignedFromAgentId || undefined;
+  let reassignedFromAgentName: string | undefined = row.reassigned_from_agent_name || row.reassignedFromAgentName || undefined;
+  let reassignedAt: string | undefined = row.reassigned_at || row.reassignedAt || undefined;
+
+  let supervisorNote = row.supervisor_note || row.supervisorNote || '';
+
+  // Extract embedded metadata tag from supervisorNote if present
+  if (typeof supervisorNote === 'string') {
+    const tagMatch = supervisorNote.match(/\[SUP_ASSIGN:([^\]]+)\]/);
+    if (tagMatch) {
+      try {
+        const parsed = JSON.parse(tagMatch[1]);
+        if (parsed.assigned) appointmentAssignedBySupervisor = true;
+        if (parsed.fromId) reassignedFromAgentId = parsed.fromId;
+        if (parsed.fromName) reassignedFromAgentName = parsed.fromName;
+        if (parsed.at) reassignedAt = parsed.at;
+        supervisorNote = supervisorNote.replace(tagMatch[0], '').trim();
+      } catch (e) {
+        // ignore parse error
+      }
+    }
+  }
+
+  // Heuristic fallback: check if supervisorNote text itself indicates supervisor assignment
+  if (!appointmentAssignedBySupervisor && !reassignedFromAgentId && typeof supervisorNote === 'string') {
+    const lower = supervisorNote.toLowerCase();
+    if (
+      lower.includes('by supervisor') ||
+      lower.includes('assigned by supervisor') ||
+      lower.startsWith('assigned to ') ||
+      lower.includes('supervisor assigned')
+    ) {
+      appointmentAssignedBySupervisor = true;
+    }
+  }
+
   return {
     id: String(row.id),
     customerName: row.customer_name || row.customerName || '',
@@ -75,13 +126,17 @@ export function fromDBCustomerRecord(row: any): CustomerRecord {
     status: row.status || 'Uncalled',
     appointment: row.appointment || '',
     feedbackNote: row.feedback_note || row.feedbackNote || '',
-    supervisorNote: row.supervisor_note || row.supervisorNote || '',
+    supervisorNote: supervisorNote,
     assignedAgentId: row.assigned_agent_id || row.assignedAgentId || '',
     assignedAgentName: row.assigned_agent_name || row.assignedAgentName || '',
     supervisorId: row.supervisor_id || row.supervisorId || '',
     hasBeenCalled: Boolean(row.has_been_called ?? row.hasBeenCalled),
     callCount: Number(row.call_count ?? row.callCount ?? 0),
     importedBatchId: row.imported_batch_id || row.importedBatchId,
+    appointmentAssignedBySupervisor: appointmentAssignedBySupervisor || undefined,
+    reassignedFromAgentId: reassignedFromAgentId,
+    reassignedFromAgentName: reassignedFromAgentName,
+    reassignedAt: reassignedAt,
     updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
   };
@@ -230,19 +285,44 @@ export const supabaseDb = {
     }
   },
 
-  // Fetch all customer records
+  // Fetch all customer records with automatic pagination across 1,000-row limits
   async fetchCustomers(): Promise<CustomerRecord[] | null> {
     try {
-      const { data, error } = await supabase
-        .from('customer_records')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let allRows: any[] = [];
+      const PAGE_SIZE = 1000;
+      let page = 0;
+      let hasMore = true;
 
-      if (error) {
-        console.warn('Supabase fetchCustomers notice:', error.message);
-        return null;
+      while (hasMore) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        const { data, error } = await supabase
+          .from('customer_records')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (error) {
+          console.warn('Supabase fetchCustomers notice:', error.message);
+          // If we already retrieved earlier pages, return what we got
+          if (allRows.length > 0) break;
+          return null;
+        }
+
+        if (data && data.length > 0) {
+          allRows.push(...data);
+          if (data.length < PAGE_SIZE) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
       }
-      return data ? data.map(fromDBCustomerRecord) : [];
+
+      console.log(`[Supabase fetchCustomers: Complete] Successfully fetched ${allRows.length} total customer records.`);
+      return allRows.map(fromDBCustomerRecord);
     } catch (err) {
       console.warn('Supabase fetchCustomers error:', err);
       return null;
@@ -268,18 +348,23 @@ export const supabaseDb = {
     }
   },
 
-  // Batch insert/upsert records
+  // Batch insert/upsert records with chunked uploads
   async batchUpsertCustomers(records: CustomerRecord[]): Promise<boolean> {
     try {
       if (records.length === 0) return true;
       const rows = records.map(toDBCustomerRecord);
-      const { error } = await supabase
-        .from('customer_records')
-        .upsert(rows, { onConflict: 'id' });
+      const CHUNK_SIZE = 500;
+      
+      for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+        const chunk = rows.slice(i, i + CHUNK_SIZE);
+        const { error } = await supabase
+          .from('customer_records')
+          .upsert(chunk, { onConflict: 'id' });
 
-      if (error) {
-        console.warn('Supabase batchUpsertCustomers notice:', error.message);
-        return false;
+        if (error) {
+          console.warn('Supabase batchUpsertCustomers notice on chunk:', error.message);
+          return false;
+        }
       }
       return true;
     } catch (err) {
@@ -490,6 +575,36 @@ export const supabaseDb = {
         success: false, 
         error: err?.message || 'Network or communication failure with database' 
       };
+    }
+  },
+
+  // Batch insert/upsert users
+  async batchUpsertUsers(users: User[]): Promise<{ success: boolean; count: number; error?: string }> {
+    console.group(`[Supabase DB Transaction: batchUpsertUsers] Count: ${users.length}`);
+    try {
+      if (users.length === 0) {
+        console.groupEnd();
+        return { success: true, count: 0 };
+      }
+      const rows = users.map(toDBUser);
+      console.log(`[Supabase batchUpsertUsers: Executing] Upserting ${rows.length} user rows...`);
+      const { error } = await supabase
+        .from('users')
+        .upsert(rows, { onConflict: 'id' });
+
+      if (error) {
+        console.error('[Supabase batchUpsertUsers: Error]', error);
+        console.groupEnd();
+        return { success: false, count: 0, error: error.message };
+      }
+
+      console.log(`[Supabase batchUpsertUsers: Committed] Successfully upserted ${users.length} users.`);
+      console.groupEnd();
+      return { success: true, count: users.length };
+    } catch (err: any) {
+      console.error('[Supabase batchUpsertUsers: Exception]', err);
+      console.groupEnd();
+      return { success: false, count: 0, error: err?.message || 'Failed batch upserting users' };
     }
   },
 

@@ -105,8 +105,66 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     const assignedAgent = availableAgents.find(a => a.id === selectedAgentId);
     const batchId = `BATCH-${new Date().toISOString().slice(0, 10)}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+    // Match agent from filename if not explicitly chosen, e.g. "Mohamed_calling.xlsx" or "Agent_Kifaax.xlsx"
+    const SYSTEM_BLACKLIST = new Set([
+      'mycash', 'amal', 'customer', 'customers', 'lead', 'leads', 'call', 'calls',
+      'roster', 'sheet', 'data', 'report', 'export', 'general', 'telesales', 'users', 'user', 'excel'
+    ]);
+
+    let fileAgentName = '';
+    for (const ag of availableAgents) {
+      const firstName = ag.name.toLowerCase().split(' ')[0];
+      if (firstName.length >= 3 && parseResult.fileName.toLowerCase().includes(firstName)) {
+        fileAgentName = ag.name;
+        break;
+      }
+    }
+
+    if (!fileAgentName) {
+      const fileMatch = parseResult.fileName.match(/agent[\s_-]+([a-zA-Z]+)/i) || 
+                         parseResult.fileName.match(/([a-zA-Z]+)[\s_-]+calling/i);
+      if (fileMatch && !SYSTEM_BLACKLIST.has(fileMatch[1].toLowerCase())) {
+        fileAgentName = fileMatch[1];
+      }
+    }
+
     const newRecords: CustomerRecord[] = parseResult.validRows.map((row: ParsedRow, idx: number) => {
-      const hasStatus = row.status && row.status !== 'Uncalled';
+      // Determine agent name and ID
+      let effectiveAgentName = (row.agentName && row.agentName.trim().length > 0) 
+        ? row.agentName.trim() 
+        : (assignedAgent ? assignedAgent.name : fileAgentName);
+      let effectiveAgentId = assignedAgent ? assignedAgent.id : '';
+      let effectiveSupervisorId = currentUser.role === 'SUPERVISOR' ? currentUser.id : (assignedAgent?.supervisorId || '');
+
+      if (effectiveAgentName && !effectiveAgentId) {
+        const matchingAgent = availableAgents.find(a => 
+          a.name.toLowerCase().trim() === effectiveAgentName.toLowerCase().trim() ||
+          a.name.toLowerCase().includes(effectiveAgentName.toLowerCase()) ||
+          effectiveAgentName.toLowerCase().includes(a.name.toLowerCase())
+        );
+        if (matchingAgent) {
+          effectiveAgentId = matchingAgent.id;
+          effectiveAgentName = matchingAgent.name;
+          if (!effectiveSupervisorId && matchingAgent.supervisorId) {
+            effectiveSupervisorId = matchingAgent.supervisorId;
+          }
+        } else if (!SYSTEM_BLACKLIST.has(effectiveAgentName.toLowerCase())) {
+          effectiveAgentId = `agent-${effectiveAgentName.toLowerCase().replace(/\s+/g, '-')}`;
+        } else {
+          effectiveAgentName = 'Unassigned';
+          effectiveAgentId = '';
+        }
+      }
+
+      if (!effectiveAgentName || SYSTEM_BLACKLIST.has(effectiveAgentName.toLowerCase())) {
+        effectiveAgentName = 'Unassigned';
+        effectiveAgentId = '';
+      }
+
+      const hasStatus = (row.status && row.status !== 'Uncalled') || 
+                        Boolean(row.appointment && row.appointment.trim().length > 0) || 
+                        Boolean(row.feedbackNote && row.feedbackNote.trim().length > 0);
+
       return {
         id: `rec-imp-${Date.now()}-${idx}`,
         customerName: row.customerName,
@@ -117,9 +175,9 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
         appointment: row.appointment,
         feedbackNote: row.feedbackNote,
         supervisorNote: row.supervisorNote,
-        assignedAgentId: assignedAgent ? assignedAgent.id : '',
-        assignedAgentName: assignedAgent ? assignedAgent.name : 'Unassigned',
-        supervisorId: currentUser.role === 'SUPERVISOR' ? currentUser.id : (assignedAgent?.supervisorId || ''),
+        assignedAgentId: effectiveAgentId,
+        assignedAgentName: effectiveAgentName,
+        supervisorId: effectiveSupervisorId,
         hasBeenCalled: hasStatus,
         callCount: hasStatus ? 1 : 0,
         importedBatchId: batchId,

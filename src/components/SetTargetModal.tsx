@@ -13,7 +13,7 @@ import {
   Layers,
   ArrowRight
 } from 'lucide-react';
-import { User, BranchInfo, CustomerRecord } from '../types';
+import { User, BranchInfo, CustomerRecord, isRecordAssignedBySupervisor } from '../types';
 
 interface SetTargetModalProps {
   isOpen: boolean;
@@ -69,7 +69,10 @@ export const SetTargetModal: React.FC<SetTargetModalProps> = ({
   const computedBranchMonthly = isCustomTotal ? customTotalMonthly : baseMonthlyPerAgent * activeAgentCount;
 
   // Agent call stats
-  const agentRecords = targetAgent ? records.filter(r => r.assignedAgentId === targetAgent.id) : [];
+  const agentRecords = targetAgent ? records.filter(r => 
+    (r.assignedAgentId === targetAgent.id || (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === targetAgent.name.trim().toLowerCase())) &&
+    !isRecordAssignedBySupervisor(r)
+  ) : [];
   const agentCalledCount = agentRecords.filter(r => r.hasBeenCalled || (r.status && r.status !== 'Uncalled')).length;
 
   // Branch call stats

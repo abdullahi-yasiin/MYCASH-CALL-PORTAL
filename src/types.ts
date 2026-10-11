@@ -1,7 +1,7 @@
 export type UserRole = 'HQ_ADMIN' | 'SUPERVISOR' | 'TEAM_MEMBER';
 
 export type AppPermission =
-  | 'VIEW_ALL_BRANCHES'        // View metrics & records across all 24 regional branches
+  | 'VIEW_ALL_BRANCHES'        // View metrics & records across all regional branches
   | 'MANAGE_USERS'             // Create, edit, and deactivate users
   | 'MANAGE_ROLES_PERMISSIONS' // Modify permissions allocated to roles
   | 'IMPORT_EXCEL_LEADS'       // Bulk import customer lead sheets
@@ -65,8 +65,31 @@ export interface CustomerRecord {
   hasBeenCalled: boolean; // Unique Call State Rule
   callCount: number; // Deduplication: once set, increments to 1, further edits don't re-increment total calls
   importedBatchId?: string;
+  appointmentAssignedBySupervisor?: boolean;
+  reassignedFromAgentId?: string;
+  reassignedFromAgentName?: string;
+  reassignedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export function isRecordAssignedBySupervisor(r: CustomerRecord | undefined | null): boolean {
+  if (!r) return false;
+  if (r.appointmentAssignedBySupervisor) return true;
+  if (Boolean(r.reassignedFromAgentId)) return true;
+  if (typeof r.supervisorNote === 'string') {
+    if (r.supervisorNote.includes('[SUP_ASSIGN:')) return true;
+    const lower = r.supervisorNote.toLowerCase();
+    if (
+      lower.includes('by supervisor') || 
+      lower.includes('assigned by supervisor') || 
+      lower.startsWith('assigned to ') ||
+      lower.includes('supervisor assigned')
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export interface DeleteExcelTarget {

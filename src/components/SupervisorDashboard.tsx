@@ -21,7 +21,9 @@ import {
   RefreshCw,
   UploadCloud,
   ChevronDown,
-  X
+  X,
+  UserCheck,
+  Check
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -33,7 +35,7 @@ import {
   Legend, 
   CartesianGrid 
 } from 'recharts';
-import { User, CustomerRecord, ActivityLog } from '../types';
+import { User, CustomerRecord, ActivityLog, isRecordAssignedBySupervisor } from '../types';
 import { exportTeamSummaryToExcel, TeamMemberSummaryRow } from '../utils/exportEngine';
 
 interface SupervisorDashboardProps {
@@ -45,6 +47,8 @@ interface SupervisorDashboardProps {
   onAddTeamMember: () => void;
   onOpenBulkImport: (targetAgentId?: string) => void;
   onRefreshData?: () => void;
+  onUpdateRecord?: (updatedRecord: CustomerRecord, changeDetails: string) => void;
+  onOpenAiIntelligence?: () => void;
 }
 
 export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
@@ -55,7 +59,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   onInspectAgentExcel,
   onAddTeamMember,
   onOpenBulkImport,
-  onRefreshData
+  onRefreshData,
+  onUpdateRecord,
+  onOpenAiIntelligence
 }) => {
   const [activeTab, setActiveTab] = useState<'teamSummary' | 'teamAppointments' | 'teamActivity'>('teamSummary');
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,6 +69,11 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   const [isUploadDropdownOpen, setIsUploadDropdownOpen] = useState(false);
   const [agentFilterQuery, setAgentFilterQuery] = useState('');
   const uploadDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Reassign appointment modal state
+  const [reassignModalRecord, setReassignModalRecord] = useState<CustomerRecord | null>(null);
+  const [selectedTargetAgentId, setSelectedTargetAgentId] = useState<string>('');
+  const [reassignNote, setReassignNote] = useState<string>('');
 
   // Close upload dropdown when clicking outside
   useEffect(() => {
@@ -105,10 +116,13 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     );
   }, [supervisedAgents, agentFilterQuery]);
 
-  // 2. Compute automated summary for each team member's Excel
+  // 2. Compute automated summary for each team member's Excel (strictly raw Excel calling rosters)
   const agentSummaries = useMemo(() => {
     return supervisedAgents.map(agent => {
-      const agentRecords = records.filter(r => r.assignedAgentId === agent.id);
+      const agentRecords = records.filter(r => 
+        (r.assignedAgentId === agent.id || (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase())) &&
+        !isRecordAssignedBySupervisor(r)
+      );
       const totalLeads = agentRecords.length;
       const called = agentRecords.filter(r => r.hasBeenCalled || (r.status && r.status !== 'Uncalled')).length;
       const uncalled = agentRecords.filter(r => !r.hasBeenCalled && (!r.status || r.status === 'Uncalled')).length;
@@ -161,11 +175,11 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   const totalTeamNotAvailable = teamRecords.filter(r => r.status === 'Not Available').length;
   const totalTeamRejected = teamRecords.filter(r => r.status === 'Rejected').length;
   
-  // Team appointments
+  // Team appointments (includes all scheduled callbacks and supervisor-assigned appointments)
   const teamAppointments = useMemo(() => {
     return teamRecords
-      .filter(r => r.appointment && r.appointment.trim() !== '')
-      .sort((a, b) => (a.appointment > b.appointment ? 1 : -1));
+      .filter(r => (r.appointment && r.appointment.trim() !== '') || isRecordAssignedBySupervisor(r))
+      .sort((a, b) => ((a.appointment || '') > (b.appointment || '') ? 1 : -1));
   }, [teamRecords]);
 
   const teamConversionRate = totalTeamCalled > 0 
@@ -235,7 +249,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
         {/* Selected target element: Supervisor Action Buttons container */}
         <div 
-          id="supervisor-banner-action-buttons"
+          id="supervisor-banner-action-buttons" 
           className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t border-slate-800/80 md:border-t-0"
         >
           {/* Upload File with Agent Selection Dropdown */}
@@ -802,37 +816,67 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                     <th className="py-1 sm:py-2 px-2.5 sm:px-4">Customer Name</th>
                     <th className="py-1 sm:py-2 px-2 sm:px-3">Phone</th>
                     <th className="py-1 sm:py-2 px-2 sm:px-3">Scheduled Callback Time</th>
-                    <th className="py-1 sm:py-2 px-2 sm:px-3">Booked Team Member</th>
-                    <th className="py-1 sm:py-2 px-2 sm:px-3">Agent Notes</th>
+                    <th className="py-1 sm:py-2 px-2 sm:px-3">Assigned Team Member</th>
+                    <th className="py-1 sm:py-2 px-2 sm:px-3">Agent Notes (Full View)</th>
+                    <th className="py-1 sm:py-2 px-2 sm:px-3 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {teamAppointments.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 sm:py-12 text-center text-slate-400 text-[10px] sm:text-xs">
+                      <td colSpan={6} className="py-8 sm:py-12 text-center text-slate-400 text-[10px] sm:text-xs">
                         <AlertCircle className="w-4 h-4 sm:w-6 sm:h-6 mx-auto mb-1 text-slate-300" />
                         No upcoming appointments currently booked by your team members.
                       </td>
                     </tr>
                   ) : (
                     teamAppointments.map((app) => (
-                      <tr key={app.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-1.5 sm:py-3 px-2.5 sm:px-4 font-bold text-slate-900 text-[9.5px] sm:text-xs">
+                      <tr key={app.id} className="hover:bg-slate-50/90 transition-colors">
+                        <td className="py-2.5 sm:py-3 px-2.5 sm:px-4 font-bold text-slate-900 text-[9.5px] sm:text-xs">
                           {app.customerName}
                         </td>
-                        <td className="py-1.5 sm:py-3 px-2 sm:px-3 font-mono text-slate-700 text-[9px] sm:text-xs">
+                        <td className="py-2.5 sm:py-3 px-2 sm:px-3 font-mono text-slate-700 text-[9px] sm:text-xs">
                           {app.phoneNumber}
                         </td>
-                        <td className="py-1.5 sm:py-3 px-2 sm:px-3">
-                          <span className="bg-red-100 text-red-800 font-bold px-1 sm:px-2 py-0.2 sm:py-0.5 rounded-xs sm:rounded border border-red-200 text-[8.5px] sm:text-[11px] whitespace-nowrap inline-block">
+                        <td className="py-2.5 sm:py-3 px-2 sm:px-3">
+                          <span className="bg-red-100 text-red-800 font-bold px-1.5 sm:px-2 py-0.5 rounded-xs sm:rounded border border-red-200 text-[8.5px] sm:text-[11px] whitespace-nowrap inline-block">
                             {app.appointment.replace('T', ' ')}
                           </span>
+                          {isRecordAssignedBySupervisor(app) && (
+                            <div className="mt-1">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-amber-50 text-amber-900 border border-amber-300/80 whitespace-nowrap">
+                                <UserCheck className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                Reassigned {app.reassignedFromAgentName ? `from ${app.reassignedFromAgentName}` : ''}
+                              </span>
+                            </div>
+                          )}
                         </td>
-                        <td className="py-1.5 sm:py-3 px-2 sm:px-3 font-semibold text-slate-800 text-[9px] sm:text-xs">
+                        <td className="py-2.5 sm:py-3 px-2 sm:px-3 font-semibold text-slate-800 text-[9px] sm:text-xs">
                           {app.assignedAgentName}
                         </td>
-                        <td className="py-1.5 sm:py-3 px-2 sm:px-3 text-slate-600 max-w-xs sm:max-w-sm truncate text-[9px] sm:text-xs" title={app.feedbackNote}>
-                          {app.feedbackNote || <span className="text-slate-400 italic">Callback requested</span>}
+                        <td className="py-2.5 sm:py-3 px-2 sm:px-3 text-slate-700 text-[9.5px] sm:text-xs w-64 max-w-[260px] sm:max-w-xs md:max-w-sm align-top">
+                          {app.feedbackNote ? (
+                            <div className="w-full whitespace-normal break-words [overflow-wrap:anywhere] [word-break:break-word] bg-slate-50 border border-slate-200/90 rounded-lg p-2 leading-relaxed text-slate-800 shadow-2xs font-sans">
+                              {app.feedbackNote}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">No notes logged</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 sm:py-3 px-2 sm:px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReassignModalRecord(app);
+                              setSelectedTargetAgentId('');
+                              setReassignNote('');
+                            }}
+                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-lg font-bold text-[10px] sm:text-[11px] inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                            title="Reassign this callback appointment to another team member under your supervision"
+                          >
+                            <UserCheck className="w-3 h-3 shrink-0" />
+                            <span>Reassign</span>
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -892,6 +936,129 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 </div>
               ))
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Reassign Appointment Modal */}
+      {reassignModalRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-5 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg shrink-0">
+                  <UserCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight">
+                    Reassign Callback Appointment
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Reallocate follow-up to another team member
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setReassignModalRecord(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs space-y-1.5">
+              <div>
+                <span className="text-slate-500 font-medium">Customer Name: </span>
+                <strong className="text-slate-900 font-bold">{reassignModalRecord.customerName}</strong> ({reassignModalRecord.phoneNumber})
+              </div>
+              <div>
+                <span className="text-slate-500 font-medium">Scheduled Time: </span>
+                <span className="font-mono font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.2 rounded text-[11px]">
+                  {reassignModalRecord.appointment.replace('T', ' ')}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 font-medium">Currently Assigned To: </span>
+                <strong className="text-slate-800">{reassignModalRecord.assignedAgentName}</strong>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Assign To Team Member <span className="text-red-600">*</span>
+                </label>
+                <select
+                  value={selectedTargetAgentId}
+                  onChange={(e) => setSelectedTargetAgentId(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="">-- Select Team Member --</option>
+                  {supervisedAgents.map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.branch}) {a.id === reassignModalRecord.assignedAgentId ? '(Current)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Supervisor Directive / Reassignment Note (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={reassignNote}
+                  onChange={(e) => setReassignNote(e.target.value)}
+                  placeholder="e.g. Please follow up on this callback as requested..."
+                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setReassignModalRecord(null)}
+                className="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-xl font-bold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!selectedTargetAgentId}
+                onClick={() => {
+                  const targetAgent = supervisedAgents.find(a => a.id === selectedTargetAgentId);
+                  if (!targetAgent) return;
+
+                  const updated: CustomerRecord = {
+                    ...reassignModalRecord,
+                    assignedAgentId: targetAgent.id,
+                    assignedAgentName: targetAgent.name,
+                    appointmentAssignedBySupervisor: true,
+                    reassignedFromAgentId: reassignModalRecord.assignedAgentId,
+                    reassignedFromAgentName: reassignModalRecord.assignedAgentName,
+                    reassignedAt: new Date().toISOString(),
+                    appointment: (reassignModalRecord.appointment && reassignModalRecord.appointment.trim() !== '')
+                      ? reassignModalRecord.appointment
+                      : new Date().toISOString().slice(0, 16),
+                    supervisorNote: reassignNote.trim() 
+                      ? reassignNote.trim() 
+                      : (reassignModalRecord.supervisorNote || `Assigned to ${targetAgent.name} by Supervisor ${currentUser.name}`),
+                    updatedAt: new Date().toISOString()
+                  };
+
+                  if (onUpdateRecord) {
+                    onUpdateRecord(updated, `Supervisor reassigned appointment for ${reassignModalRecord.customerName} to ${targetAgent.name}`);
+                  }
+
+                  setReassignModalRecord(null);
+                }}
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 active:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs transition-all cursor-pointer"
+              >
+                Confirm Reassignment
+              </button>
+            </div>
           </div>
         </div>
       )}

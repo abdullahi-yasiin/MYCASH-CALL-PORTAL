@@ -19,11 +19,13 @@ export const INITIAL_BRANCHES: BranchInfo[] = [
   { id: 'b-dll', name: 'Dollow Branch', region: 'Gedo', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 550 },
   { id: 'b-brd', name: 'Baardheere Branch', region: 'Gedo', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 600 },
   { id: 'b-blx', name: 'Baledxaawo Branch', region: 'Gedo', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 550 },
+  { id: 'b-jwh', name: 'Jowhar Branch', region: 'Middle Shabelle', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 700 },
   { id: 'b-mgd', name: 'Mogadishu Branch', region: 'Banadir', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 1500 },
   { id: 'b-hrg', name: 'Hargeisa Branch', region: 'Maroodi Jeex', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 1200 },
   { id: 'b-brm', name: 'Borama Branch', region: 'Awdal', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 750 },
   { id: 'b-brb', name: 'Berbera Branch', region: 'Sahil', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 700 },
   { id: 'b-brc', name: 'Burco Branch', region: 'Togdheer', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 850 },
+  { id: 'b-bhd', name: 'Buuhoodle Branch', region: 'Togdheer', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 650 },
   { id: 'b-wjl', name: 'Wajaale Branch', region: 'Maroodi Jeex', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 600 }
 ];
 

@@ -27,7 +27,11 @@ import {
   UploadCloud,
   ChevronDown,
   X,
-  Trash2
+  Trash2,
+  ArrowUpDown,
+  SlidersHorizontal,
+  RotateCcw,
+  Mail
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -42,7 +46,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { BranchInfo, User, CustomerRecord, ActivityLog, DeleteExcelTarget } from '../types';
+import { BranchInfo, User, CustomerRecord, ActivityLog, DeleteExcelTarget, isRecordAssignedBySupervisor } from '../types';
 import { exportTeamSummaryToExcel, TeamMemberSummaryRow } from '../utils/exportEngine';
 
 interface AdminDashboardProps {
@@ -55,10 +59,13 @@ interface AdminDashboardProps {
   onInspectAgentExcel: (agent: User) => void;
   onOpenPrdModal: () => void;
   onOpenBulkImport: (targetAgentId?: string) => void;
+  onOpenBulkUserImport?: () => void;
   onOpenUserManagement?: () => void;
   onOpenDeleteExcel?: (target?: DeleteExcelTarget) => void;
   onOpenSetAgentTarget?: (agent: User) => void;
   onOpenSetBranchTarget?: (branch: BranchInfo) => void;
+  onOpenAiIntelligence?: () => void;
+  onOpenEmailConfig?: () => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -71,18 +78,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onInspectAgentExcel,
   onOpenPrdModal,
   onOpenBulkImport,
+  onOpenBulkUserImport,
   onOpenUserManagement,
   onOpenDeleteExcel,
   onOpenSetAgentTarget,
-  onOpenSetBranchTarget
+  onOpenSetBranchTarget,
+  onOpenAiIntelligence,
+  onOpenEmailConfig
 }) => {
   // Active view tab inside the auto-summary dashboard
   const [activeSection, setActiveSection] = useState<'teamExcels' | 'regionalBranches' | 'supervisors' | 'appointments' | 'activityLogs'>('teamExcels');
   
-  // Filters for auto-summary
+  // Filters & Sort for Section 1: Team Excels
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
+  const [selectedAgent, setSelectedAgent] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [teamSortField, setTeamSortField] = useState<'agentName' | 'branch' | 'totalLeads' | 'called' | 'uncalled' | 'success' | 'inProgress' | 'notAvailable' | 'rejected' | 'appointments' | 'conversion' | 'progressPercent'>('agentName');
+  const [teamSortDirection, setTeamSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleTeamSort = (field: 'agentName' | 'branch' | 'totalLeads' | 'called' | 'uncalled' | 'success' | 'inProgress' | 'notAvailable' | 'rejected' | 'appointments' | 'conversion' | 'progressPercent') => {
+    if (teamSortField === field) {
+      setTeamSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setTeamSortField(field);
+      setTeamSortDirection(field === 'agentName' || field === 'branch' ? 'asc' : 'desc');
+    }
+  };
+
+  // Filters & Sort for Section 2: Regional Branches
+  const [branchFilter, setBranchFilter] = useState<string>('ALL');
+  const [branchSupervisorFilter, setBranchSupervisorFilter] = useState<string>('ALL');
+  const [branchAgentFilter, setBranchAgentFilter] = useState<string>('ALL');
+  const [branchSearchQuery, setBranchSearchQuery] = useState<string>('');
+  const [branchSortField, setBranchSortField] = useState<'name' | 'totalLeads' | 'called' | 'success' | 'conversion' | 'monthlyTargetPercent' | 'agentCount'>('name');
+  const [branchSortDirection, setBranchSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Filters & Sort for Section 3: Supervisors
+  const [supBranchFilter, setSupBranchFilter] = useState<string>('ALL');
+  const [supSupervisorFilter, setSupSupervisorFilter] = useState<string>('ALL');
+  const [supAgentFilter, setSupAgentFilter] = useState<string>('ALL');
+  const [supSearchQuery, setSupSearchQuery] = useState<string>('');
+  const [supSortField, setSupSortField] = useState<'name' | 'agentCount' | 'totalLeads' | 'called' | 'success' | 'conversion'>('name');
+  const [supSortDirection, setSupSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Filters & Sort for Section 4: Scheduled Appointments
+  const [appAgentFilter, setAppAgentFilter] = useState<string>('ALL');
+  const [appBranchFilter, setAppBranchFilter] = useState<string>('ALL');
+  const [appSupervisorFilter, setAppSupervisorFilter] = useState<string>('ALL');
+  const [appSearchQuery, setAppSearchQuery] = useState<string>('');
+  const [appSortField, setAppSortField] = useState<'appointment' | 'customerName' | 'agentName' | 'branch'>('appointment');
+  const [appSortDirection, setAppSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Filters & Sort for Section 5: Activity / Audit Logs
+  const [logUserFilter, setLogUserFilter] = useState<string>('ALL');
+  const [logBranchFilter, setLogBranchFilter] = useState<string>('ALL');
+  const [logSupervisorFilter, setLogSupervisorFilter] = useState<string>('ALL');
+  const [logActionFilter, setLogActionFilter] = useState<string>('ALL');
+  const [logSearchQuery, setLogSearchQuery] = useState<string>('');
+  const [logSortDirection, setLogSortDirection] = useState<'desc' | 'asc'>('desc');
 
   // Dedicated filters for the Call Outcome Distribution Visual Analytics Chart
   const [chartBranchFilter, setChartBranchFilter] = useState<string>('ALL');
@@ -125,10 +179,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return teamMembers.filter(m => m.branch === chartBranchFilter);
   }, [teamMembers, chartBranchFilter]);
 
-  // 1. Compute automated summary for EVERY TEAM MEMBER'S EXCEL
+  // 1. Compute automated summary for EVERY TEAM MEMBER'S EXCEL (strictly uploaded raw Excel files)
   const teamMemberSummaries = useMemo(() => {
     return teamMembers.map(agent => {
-      const agentRecords = records.filter(r => r.assignedAgentId === agent.id);
+      const agentRecords = records.filter(r => 
+        (r.assignedAgentId === agent.id || (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase())) &&
+        !isRecordAssignedBySupervisor(r)
+      );
       const totalLeads = agentRecords.length;
       const called = agentRecords.filter(r => r.hasBeenCalled || (r.status && r.status !== 'Uncalled')).length;
       const uncalled = agentRecords.filter(r => !r.hasBeenCalled && (!r.status || r.status === 'Uncalled')).length;
@@ -162,22 +219,49 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   }, [teamMembers, records, supervisors]);
 
-  // Filtered team member summaries
+  // Available agents for team excels based on branch filter
+  const availableTeamAgents = useMemo(() => {
+    if (selectedBranch === 'ALL') return teamMembers;
+    return teamMembers.filter(m => m.branch === selectedBranch);
+  }, [teamMembers, selectedBranch]);
+
+  // Filtered team member summaries with Agent, Branch, Supervisor, Search, and Sort options
   const filteredTeamSummaries = useMemo(() => {
-    return teamMemberSummaries.filter(s => {
+    const result = teamMemberSummaries.filter(s => {
       const matchBranch = selectedBranch === 'ALL' || s.branch === selectedBranch;
       const matchSup = selectedSupervisor === 'ALL' || s.supervisorId === selectedSupervisor;
+      const matchAgent = selectedAgent === 'ALL' || s.agent.id === selectedAgent || s.agentName === selectedAgent;
       const q = searchQuery.toLowerCase();
       const matchQuery = !q || s.agentName.toLowerCase().includes(q) || s.branch.toLowerCase().includes(q) || s.supervisorName.toLowerCase().includes(q);
-      return matchBranch && matchSup && matchQuery;
+      return matchBranch && matchSup && matchAgent && matchQuery;
     });
-  }, [teamMemberSummaries, selectedBranch, selectedSupervisor, searchQuery]);
+
+    return [...result].sort((a, b) => {
+      let aVal = a[teamSortField];
+      let bVal = b[teamSortField];
+      if (typeof aVal === 'string') {
+        const cmp = aVal.localeCompare(bVal as string);
+        return teamSortDirection === 'asc' ? cmp : -cmp;
+      }
+      const numA = Number(aVal || 0);
+      const numB = Number(bVal || 0);
+      return teamSortDirection === 'asc' ? numA - numB : numB - numA;
+    });
+  }, [teamMemberSummaries, selectedBranch, selectedSupervisor, selectedAgent, searchQuery, teamSortField, teamSortDirection]);
 
   // 2. Compute automated summary for REGIONAL BRANCHES
   const branchSummaries = useMemo(() => {
     return branches.map(branch => {
-      const branchRecords = records.filter(r => r.areaOfReg === branch.name);
       const branchAgents = teamMembers.filter(tm => tm.branch === branch.name);
+      const bClean = branch.name.toLowerCase().replace(/branch|hub|central|[_-\s]+/gi, '').trim();
+      const branchRecords = records.filter(r => {
+        if (r.areaOfReg === branch.name) return true;
+        if (branchAgents.some(ag => ag.id === r.assignedAgentId || (r.assignedAgentName && ag.name.toLowerCase().trim() === r.assignedAgentName.toLowerCase().trim()))) {
+          return true;
+        }
+        const rClean = (r.areaOfReg || '').toLowerCase().replace(/[_-\s]+/g, '').trim();
+        return bClean.length >= 3 && (rClean.includes(bClean) || bClean.includes(rClean));
+      });
       const activeBranchAgents = branchAgents.filter(tm => tm.active !== false);
       const activeAgentCount = Math.max(1, activeBranchAgents.length);
 
@@ -268,6 +352,174 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       .filter(r => r.appointment && r.appointment.trim() !== '')
       .sort((a, b) => (a.appointment > b.appointment ? 1 : -1));
   }, [records]);
+
+  // Filtered Regional Branches with Branch, Supervisor, Agent, Search, and Sort options
+  const filteredBranchSummaries = useMemo(() => {
+    const result = branchSummaries.filter(b => {
+      const matchBranch = branchFilter === 'ALL' || b.name === branchFilter;
+      const matchSup = branchSupervisorFilter === 'ALL' || b.supervisorName === branchSupervisorFilter || b.supervisorId === branchSupervisorFilter;
+      let matchAgent = true;
+      if (branchAgentFilter !== 'ALL') {
+        const ag = teamMembers.find(m => m.id === branchAgentFilter || m.name === branchAgentFilter);
+        matchAgent = ag ? ag.branch === b.name : false;
+      }
+      const q = branchSearchQuery.toLowerCase();
+      const matchQuery = !q || b.name.toLowerCase().includes(q) || b.region.toLowerCase().includes(q) || b.supervisorName.toLowerCase().includes(q);
+      return matchBranch && matchSup && matchAgent && matchQuery;
+    });
+
+    return [...result].sort((a, b) => {
+      let aVal = a[branchSortField];
+      let bVal = b[branchSortField];
+      if (typeof aVal === 'string') {
+        const cmp = aVal.localeCompare(bVal as string);
+        return branchSortDirection === 'asc' ? cmp : -cmp;
+      }
+      const numA = Number(aVal || 0);
+      const numB = Number(bVal || 0);
+      return branchSortDirection === 'asc' ? numA - numB : numB - numA;
+    });
+  }, [branchSummaries, branchFilter, branchSupervisorFilter, branchAgentFilter, branchSearchQuery, branchSortField, branchSortDirection, teamMembers]);
+
+  // Filtered Supervisors with Branch, Supervisor, Agent, Search, and Sort options
+  const filteredSupervisorSummaries = useMemo(() => {
+    const result = supervisorSummaries.filter(sup => {
+      const matchBranch = supBranchFilter === 'ALL' || sup.branch === supBranchFilter;
+      const matchSup = supSupervisorFilter === 'ALL' || sup.id === supSupervisorFilter || sup.name === supSupervisorFilter;
+      let matchAgent = true;
+      if (supAgentFilter !== 'ALL') {
+        const ag = teamMembers.find(m => m.id === supAgentFilter || m.name === supAgentFilter);
+        matchAgent = ag ? (ag.supervisorId === sup.id || ag.branch === sup.branch) : false;
+      }
+      const q = supSearchQuery.toLowerCase();
+      const matchQuery = !q || sup.name.toLowerCase().includes(q) || sup.email.toLowerCase().includes(q) || sup.branch.toLowerCase().includes(q);
+      return matchBranch && matchSup && matchAgent && matchQuery;
+    });
+
+    return [...result].sort((a, b) => {
+      let aVal = a[supSortField];
+      let bVal = b[supSortField];
+      if (typeof aVal === 'string') {
+        const cmp = aVal.localeCompare(bVal as string);
+        return supSortDirection === 'asc' ? cmp : -cmp;
+      }
+      const numA = Number(aVal || 0);
+      const numB = Number(bVal || 0);
+      return supSortDirection === 'asc' ? numA - numB : numB - numA;
+    });
+  }, [supervisorSummaries, supBranchFilter, supSupervisorFilter, supAgentFilter, supSearchQuery, supSortField, supSortDirection, teamMembers]);
+
+  // Available agents for appointments filter
+  const availableAppAgents = useMemo(() => {
+    let list = teamMembers;
+    if (appBranchFilter !== 'ALL') {
+      list = list.filter(m => m.branch === appBranchFilter);
+    }
+    if (appSupervisorFilter !== 'ALL') {
+      const targetSup = supervisors.find(s => s.id === appSupervisorFilter || s.name === appSupervisorFilter);
+      list = list.filter(m => m.supervisorId === appSupervisorFilter || (targetSup && m.branch === targetSup.branch));
+    }
+    return list;
+  }, [teamMembers, appBranchFilter, appSupervisorFilter, supervisors]);
+
+  // Filtered Appointments with Agent, Branch, Supervisor, Search, and Sort options
+  const filteredAppointments = useMemo(() => {
+    const result = allAppointments.filter(app => {
+      const matchAgent = appAgentFilter === 'ALL' || app.assignedAgentId === appAgentFilter || app.assignedAgentName === appAgentFilter;
+      const matchBranch = appBranchFilter === 'ALL' || app.areaOfReg === appBranchFilter;
+      let matchSup = true;
+      if (appSupervisorFilter !== 'ALL') {
+        const sup = supervisors.find(s => s.id === appSupervisorFilter || s.name === appSupervisorFilter);
+        matchSup = app.supervisorId === appSupervisorFilter || (sup ? sup.branch === app.areaOfReg : false);
+      }
+      const q = appSearchQuery.toLowerCase();
+      const matchQuery = !q || 
+        app.customerName.toLowerCase().includes(q) || 
+        app.phoneNumber.includes(q) || 
+        app.assignedAgentName.toLowerCase().includes(q) || 
+        app.areaOfReg.toLowerCase().includes(q) ||
+        (app.feedbackNote && app.feedbackNote.toLowerCase().includes(q));
+      return matchAgent && matchBranch && matchSup && matchQuery;
+    });
+
+    return [...result].sort((a, b) => {
+      let aVal = '';
+      let bVal = '';
+      if (appSortField === 'appointment') {
+        aVal = a.appointment || '';
+        bVal = b.appointment || '';
+      } else if (appSortField === 'customerName') {
+        aVal = a.customerName || '';
+        bVal = b.customerName || '';
+      } else if (appSortField === 'agentName') {
+        aVal = a.assignedAgentName || '';
+        bVal = b.assignedAgentName || '';
+      } else if (appSortField === 'branch') {
+        aVal = a.areaOfReg || '';
+        bVal = b.areaOfReg || '';
+      }
+      const cmp = aVal.localeCompare(bVal);
+      return appSortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [allAppointments, appAgentFilter, appBranchFilter, appSupervisorFilter, appSearchQuery, appSortField, appSortDirection, supervisors]);
+
+  // Available users/operators for audit logs filter
+  const availableLogUsers = useMemo(() => {
+    let list: User[] = [...teamMembers, ...supervisors];
+    if (logBranchFilter !== 'ALL') {
+      list = list.filter(u => u.branch === logBranchFilter);
+    }
+    if (logSupervisorFilter !== 'ALL') {
+      list = list.filter(u => u.id === logSupervisorFilter || (u.role === 'TEAM_MEMBER' && u.supervisorId === logSupervisorFilter));
+    }
+    return list;
+  }, [teamMembers, supervisors, logBranchFilter, logSupervisorFilter]);
+
+  // Unique actions in audit logs
+  const uniqueLogActions = useMemo(() => {
+    const actions = new Set(activityLogs.map(l => l.action).filter(Boolean));
+    return Array.from(actions);
+  }, [activityLogs]);
+
+  // Filtered Activity / Audit Logs with Operator/Agent, Branch, Supervisor, Action, Search, and Sort options
+  const filteredActivityLogs = useMemo(() => {
+    const result = activityLogs.filter(log => {
+      const matchUser = logUserFilter === 'ALL' || log.userId === logUserFilter || log.userName === logUserFilter;
+      
+      let matchBranch = true;
+      if (logBranchFilter !== 'ALL') {
+        const u = teamMembers.find(m => m.id === log.userId || m.name === log.userName) ||
+                  supervisors.find(s => s.id === log.userId || s.name === log.userName);
+        matchBranch = u ? u.branch === logBranchFilter : false;
+      }
+
+      let matchSup = true;
+      if (logSupervisorFilter !== 'ALL') {
+        const u = teamMembers.find(m => m.id === log.userId || m.name === log.userName);
+        if (u) {
+          matchSup = u.supervisorId === logSupervisorFilter;
+        } else {
+          matchSup = log.userId === logSupervisorFilter || log.userName === logSupervisorFilter;
+        }
+      }
+
+      const matchAction = logActionFilter === 'ALL' || log.action === logActionFilter;
+
+      const q = logSearchQuery.toLowerCase();
+      const matchQuery = !q || 
+        log.userName.toLowerCase().includes(q) || 
+        log.customerName.toLowerCase().includes(q) || 
+        log.details.toLowerCase().includes(q) ||
+        log.action.toLowerCase().includes(q);
+
+      return matchUser && matchBranch && matchSup && matchAction && matchQuery;
+    });
+
+    return [...result].sort((a, b) => {
+      const cmp = (a.timestamp || '').localeCompare(b.timestamp || '');
+      return logSortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [activityLogs, logUserFilter, logBranchFilter, logSupervisorFilter, logActionFilter, logSearchQuery, logSortDirection, teamMembers, supervisors]);
 
   // High-level enterprise aggregates
   const totalEnterpriseLeads = records.length;
@@ -384,6 +636,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           id="admin-banner-action-buttons" 
           className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t border-slate-800/80 md:border-t-0"
         >
+          {/* AI Intelligence & Feedback Analytics Button */}
+          {onOpenAiIntelligence && (
+            <button
+              id="btn-admin-ai-intelligence"
+              onClick={onOpenAiIntelligence}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-[10px] sm:text-[11px] font-black rounded-lg transition-all border border-red-500/50 shadow-md cursor-pointer active:scale-95"
+              title="Launch AI Intelligence & Feedback Analytics (Somali Language & PDF Report)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse shrink-0" />
+              <span>AI Intelligence</span>
+            </button>
+          )}
+
           {onOpenUserManagement && (
             <button
               id="btn-admin-manage-rbac"
@@ -393,6 +658,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
               <span>Roles & Permissions</span>
+            </button>
+          )}
+
+          {onOpenBulkUserImport && currentUser.role === 'HQ_ADMIN' && (
+            <button
+              id="btn-admin-bulk-user-import"
+              onClick={onOpenBulkUserImport}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95"
+              title="Bulk import users via Excel, Word Doc, or PDF (HQ Admin only)"
+            >
+              <UploadCloud className="w-3.5 h-3.5 text-red-400 shrink-0" />
+              <span>Bulk User Import</span>
+            </button>
+          )}
+
+          {onOpenEmailConfig && currentUser.role === 'HQ_ADMIN' && (
+            <button
+              id="btn-admin-email-config"
+              onClick={onOpenEmailConfig}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95"
+              title="Configure Mailgun API & Send Welcome Email Invites to Users"
+            >
+              <Mail className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>Email Invites (Mailgun)</span>
             </button>
           )}
 
@@ -753,6 +1042,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           >
             <Activity className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
             <span>Audit Logs</span>
+            <span className={`px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-md text-[9px] sm:text-[10px] font-bold ${
+              activeSection === 'activityLogs' ? 'bg-red-800 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {activityLogs.length}
+            </span>
           </button>
         </div>
       </div>
@@ -763,23 +1057,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {activeSection === 'teamExcels' && (
         <div className="space-y-4">
           {/* Filter / Search Bar for Team Excels Summary */}
-          <div className="bg-white rounded-lg sm:rounded-2xl p-2 sm:p-4 border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-1.5 sm:gap-3 text-[10px] sm:text-xs">
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-[180px] max-w-sm">
+          <div className="bg-white rounded-xl sm:rounded-2xl p-2 sm:p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-1.5 sm:gap-2.5 text-[10px] sm:text-xs overflow-x-auto custom-scrollbar">
+            <div className="flex items-center gap-1.5 shrink-0 min-w-[140px] max-w-[200px]">
               <div className="relative w-full">
                 <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filter team member or branch..."
-                  className="w-full pl-6 sm:pl-8 pr-2.5 sm:pr-3 py-1 sm:py-1.5 bg-slate-50 border border-slate-200 rounded-md sm:rounded-xl text-[10px] sm:text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Filter member or branch..."
+                  className="w-full pl-6 sm:pl-8 pr-2 py-1 sm:py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] sm:text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
 
-            <div className="w-full sm:w-auto flex flex-wrap items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs shrink-0 flex-nowrap">
               {/* Branch Filter Pill */}
-              <div className="flex-1 sm:flex-initial min-w-0 flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-md sm:rounded-xl px-2 py-1 text-slate-700 shadow-2xs">
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
                 <Building2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
                 <label htmlFor="filter-team-branch-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
                   Branch:
@@ -788,7 +1082,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   id="filter-team-branch-select"
                   value={selectedBranch}
                   onChange={(e) => setSelectedBranch(e.target.value)}
-                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer w-full sm:w-auto truncate"
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[100px] sm:max-w-[125px] truncate"
                 >
                   <option value="ALL">All Branches ({branches.length})</option>
                   {branches.map(b => (
@@ -798,7 +1092,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               {/* Supervisor Filter Pill */}
-              <div className="flex-1 sm:flex-initial min-w-0 flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-md sm:rounded-xl px-2 py-1 text-slate-700 shadow-2xs">
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
                 <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
                 <label htmlFor="filter-team-supervisor-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
                   Supervisor:
@@ -807,7 +1101,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   id="filter-team-supervisor-select"
                   value={selectedSupervisor}
                   onChange={(e) => setSelectedSupervisor(e.target.value)}
-                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer w-full sm:w-auto truncate"
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
                 >
                   <option value="ALL">All Supervisors ({supervisors.length})</option>
                   {supervisors.map(s => (
@@ -816,16 +1110,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </select>
               </div>
 
-              {(selectedBranch !== 'ALL' || selectedSupervisor !== 'ALL' || searchQuery) && (
+              {/* Agent Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-team-agent-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Agent:
+                </label>
+                <select
+                  id="filter-team-agent-select"
+                  value={selectedAgent}
+                  onChange={(e) => setSelectedAgent(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
+                >
+                  <option value="ALL">All Agents ({availableTeamAgents.length})</option>
+                  {availableTeamAgents.map(a => (
+                    <option key={a.id} value={a.id}>{a.name} ({a.branch})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort By Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <ArrowUpDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="sort-team-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Sort:
+                </label>
+                <select
+                  id="sort-team-select"
+                  value={teamSortField}
+                  onChange={(e) => setTeamSortField(e.target.value as any)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[95px] sm:max-w-[120px] truncate"
+                >
+                  <option value="agentName">Agent Name</option>
+                  <option value="branch">Branch</option>
+                  <option value="totalLeads">Total Leads</option>
+                  <option value="called">Calls Made</option>
+                  <option value="uncalled">Uncalled</option>
+                  <option value="success">Success</option>
+                  <option value="inProgress">In-Progress</option>
+                  <option value="appointments">Appointments</option>
+                  <option value="conversion">Conversion %</option>
+                  <option value="progressPercent">Coverage %</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setTeamSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="px-1.5 py-0.5 text-[9px] font-bold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 rounded cursor-pointer transition-colors"
+                  title={teamSortDirection === 'asc' ? 'Ascending (Click for Descending)' : 'Descending (Click for Ascending)'}
+                >
+                  {teamSortDirection === 'asc' ? '▲' : '▼'}
+                </button>
+              </div>
+
+              {/* Reset Button */}
+              {(selectedBranch !== 'ALL' || selectedSupervisor !== 'ALL' || selectedAgent !== 'ALL' || searchQuery || teamSortField !== 'agentName' || teamSortDirection !== 'asc') && (
                 <button
                   onClick={() => {
                     setSelectedBranch('ALL');
                     setSelectedSupervisor('ALL');
+                    setSelectedAgent('ALL');
                     setSearchQuery('');
+                    setTeamSortField('agentName');
+                    setTeamSortDirection('asc');
                   }}
-                  className="px-2 py-1 text-[10px] sm:text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md sm:rounded-xl transition-colors cursor-pointer shrink-0 ml-auto sm:ml-0"
+                  className="px-2 py-1 text-[10px] sm:text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1 border border-red-200"
                 >
-                  Reset
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset</span>
                 </button>
               )}
             </div>
@@ -852,18 +1203,102 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-100/90 text-slate-700 font-bold uppercase tracking-wider text-[7.5px] sm:text-[9px] border-b border-slate-200">
-                    <th className="py-1.5 sm:py-2 px-1.5 sm:px-3">Agent / Team Member</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2.5">BRANCH</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2 text-center">LEADS</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2 text-center">CALLS</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2 text-center">Uncalled</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-emerald-700">Success</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-amber-700">In-Progress</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-slate-600">No Answer</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-rose-700">Rejected</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-red-700">Appointments</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2 text-center">Conversion</th>
-                    <th className="py-1.5 sm:py-2 px-1.5 sm:px-3 min-w-[110px] sm:min-w-[130px]">Excel Coverage</th>
+                    <th onClick={() => handleTeamSort('agentName')} className="py-1.5 sm:py-2 px-1.5 sm:px-3 cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by Agent Name">
+                      <div className="flex items-center gap-1">
+                        <span>Agent / Team Member</span>
+                        {teamSortField === 'agentName' && (
+                          <span className="text-[8px] text-blue-600 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th onClick={() => handleTeamSort('branch')} className="py-1.5 sm:py-2 px-1 sm:px-2.5 cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by Branch">
+                      <div className="flex items-center gap-1">
+                        <span>BRANCH</span>
+                        {teamSortField === 'branch' && (
+                          <span className="text-[8px] text-blue-600 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th onClick={() => handleTeamSort('totalLeads')} className="py-1.5 sm:py-2 px-1 sm:px-2 text-center cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by Leads">
+                      <div className="flex items-center justify-center gap-1">
+                        <span>LEADS</span>
+                        {teamSortField === 'totalLeads' && (
+                          <span className="text-[8px] text-blue-600 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th onClick={() => handleTeamSort('called')} className="py-1.5 sm:py-2 px-1 sm:px-2 text-center cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by Calls">
+                      <div className="flex items-center justify-center gap-1">
+                        <span>CALLS</span>
+                        {teamSortField === 'called' && (
+                          <span className="text-[8px] text-blue-600 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th onClick={() => handleTeamSort('uncalled')} className="py-1.5 sm:py-2 px-1 sm:px-2 text-center cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by Uncalled">
+                      <div className="flex items-center justify-center gap-1">
+                        <span>Uncalled</span>
+                        {teamSortField === 'uncalled' && (
+                          <span className="text-[8px] text-blue-600 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th onClick={() => handleTeamSort('success')} className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-emerald-700 cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by Success">
+                      <div className="flex items-center justify-center gap-1">
+                        <span>Success</span>
+                        {teamSortField === 'success' && (
+                          <span className="text-[8px] text-emerald-800 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th onClick={() => handleTeamSort('inProgress')} className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-amber-700 cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by In-Progress">
+                      <div className="flex items-center justify-center gap-1">
+                        <span>In-Progress</span>
+                        {teamSortField === 'inProgress' && (
+                          <span className="text-[8px] text-amber-800 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th onClick={() => handleTeamSort('notAvailable')} className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-slate-600 cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by No Answer">
+                      <div className="flex items-center justify-center gap-1">
+                        <span>No Answer</span>
+                        {teamSortField === 'notAvailable' && (
+                          <span className="text-[8px] text-slate-800 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th onClick={() => handleTeamSort('rejected')} className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-rose-700 cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by Rejected">
+                      <div className="flex items-center justify-center gap-1">
+                        <span>Rejected</span>
+                        {teamSortField === 'rejected' && (
+                          <span className="text-[8px] text-rose-800 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th onClick={() => handleTeamSort('appointments')} className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-red-700 cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by Appointments">
+                      <div className="flex items-center justify-center gap-1">
+                        <span>Appointments</span>
+                        {teamSortField === 'appointments' && (
+                          <span className="text-[8px] text-red-800 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th onClick={() => handleTeamSort('conversion')} className="py-1.5 sm:py-2 px-1 sm:px-2 text-center cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by Conversion">
+                      <div className="flex items-center justify-center gap-1">
+                        <span>Conversion</span>
+                        {teamSortField === 'conversion' && (
+                          <span className="text-[8px] text-blue-600 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th onClick={() => handleTeamSort('progressPercent')} className="py-1.5 sm:py-2 px-1.5 sm:px-3 min-w-[110px] sm:min-w-[130px] cursor-pointer hover:bg-slate-200/70 select-none transition-colors" title="Click to sort by Excel Coverage">
+                      <div className="flex items-center gap-1">
+                        <span>Excel Coverage</span>
+                        {teamSortField === 'progressPercent' && (
+                          <span className="text-[8px] text-blue-600 font-black">{teamSortDirection === 'asc' ? '▲' : '▼'}</span>
+                        )}
+                      </div>
+                    </th>
                     <th className="py-1.5 sm:py-2 px-1.5 sm:px-3 text-center min-w-[190px] sm:min-w-[220px] whitespace-nowrap">ACTIONS</th>
                   </tr>
                 </thead>
@@ -1187,6 +1622,128 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* ======================================================== */}
       {activeSection === 'regionalBranches' && (
         <div className="space-y-4">
+          {/* Filter / Search Bar for Regional Branches */}
+          <div className="bg-white rounded-xl sm:rounded-2xl p-2 sm:p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-1.5 sm:gap-2.5 text-[10px] sm:text-xs overflow-x-auto custom-scrollbar">
+            <div className="flex items-center gap-1.5 shrink-0 min-w-[140px] max-w-[200px]">
+              <div className="relative w-full">
+                <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={branchSearchQuery}
+                  onChange={(e) => setBranchSearchQuery(e.target.value)}
+                  placeholder="Filter branch, region, or supervisor..."
+                  className="w-full pl-6 sm:pl-8 pr-2 py-1 sm:py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] sm:text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs shrink-0 flex-nowrap">
+              {/* Branch Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <Building2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-branch-name-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Branch:
+                </label>
+                <select
+                  id="filter-branch-name-select"
+                  value={branchFilter}
+                  onChange={(e) => setBranchFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[100px] sm:max-w-[125px] truncate"
+                >
+                  <option value="ALL">All Branches ({branches.length})</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Supervisor Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <UserCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-branch-sup-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Supervisor:
+                </label>
+                <select
+                  id="filter-branch-sup-select"
+                  value={branchSupervisorFilter}
+                  onChange={(e) => setBranchSupervisorFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
+                >
+                  <option value="ALL">All Supervisors ({supervisors.length})</option>
+                  {supervisors.map(s => (
+                    <option key={s.id} value={s.name}>{s.name} ({s.branch})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Agent Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-branch-agent-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Agent:
+                </label>
+                <select
+                  id="filter-branch-agent-select"
+                  value={branchAgentFilter}
+                  onChange={(e) => setBranchAgentFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
+                >
+                  <option value="ALL">All Agents ({teamMembers.length})</option>
+                  {teamMembers.map(a => (
+                    <option key={a.id} value={a.id}>{a.name} ({a.branch})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort By Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <ArrowUpDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="sort-branch-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Sort:
+                </label>
+                <select
+                  id="sort-branch-select"
+                  value={branchSortField}
+                  onChange={(e) => setBranchSortField(e.target.value as any)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[95px] sm:max-w-[120px] truncate"
+                >
+                  <option value="name">Branch Name</option>
+                  <option value="totalLeads">Total Leads</option>
+                  <option value="called">Calls Made</option>
+                  <option value="success">Success</option>
+                  <option value="conversion">Conversion Rate %</option>
+                  <option value="monthlyTargetPercent">Target %</option>
+                  <option value="agentCount">Agent Count</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setBranchSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="px-1.5 py-0.5 text-[9px] font-bold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 rounded cursor-pointer transition-colors"
+                  title={branchSortDirection === 'asc' ? 'Ascending (Click for Descending)' : 'Descending (Click for Ascending)'}
+                >
+                  {branchSortDirection === 'asc' ? '▲' : '▼'}
+                </button>
+              </div>
+
+              {(branchFilter !== 'ALL' || branchSupervisorFilter !== 'ALL' || branchAgentFilter !== 'ALL' || branchSearchQuery || branchSortField !== 'name' || branchSortDirection !== 'asc') && (
+                <button
+                  onClick={() => {
+                    setBranchFilter('ALL');
+                    setBranchSupervisorFilter('ALL');
+                    setBranchAgentFilter('ALL');
+                    setBranchSearchQuery('');
+                    setBranchSortField('name');
+                    setBranchSortDirection('asc');
+                  }}
+                  className="px-2 py-1 text-[10px] sm:text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1 border border-red-200"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white border border-slate-200/90 rounded-xl sm:rounded-2xl shadow-xs overflow-hidden">
             <div className="px-2.5 sm:px-6 py-2 sm:py-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between flex-wrap gap-1.5 sm:gap-2">
               <div>
@@ -1199,7 +1756,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </p>
               </div>
               <span className="hidden sm:inline-flex items-center text-[9.5px] sm:text-xs font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 bg-blue-50 text-blue-700 rounded-lg sm:rounded-xl border border-blue-200">
-                {branches.length} Regional Hubs
+                {filteredBranchSummaries.length} of {branches.length} Regional Hubs
               </span>
             </div>
 
@@ -1220,7 +1777,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {branchSummaries.map((b) => (
+                  {filteredBranchSummaries.map((b) => (
                     <tr key={b.id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-2 sm:py-3.5 px-2 sm:px-4 font-bold text-slate-900 text-[10px] sm:text-xs">
                         <div>{b.name}</div>
@@ -1317,6 +1874,127 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* ======================================================== */}
       {activeSection === 'supervisors' && (
         <div className="space-y-4">
+          {/* Filter / Search Bar for Supervisors */}
+          <div className="bg-white rounded-xl sm:rounded-2xl p-2 sm:p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-1.5 sm:gap-2.5 text-[10px] sm:text-xs overflow-x-auto custom-scrollbar">
+            <div className="flex items-center gap-1.5 shrink-0 min-w-[140px] max-w-[200px]">
+              <div className="relative w-full">
+                <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={supSearchQuery}
+                  onChange={(e) => setSupSearchQuery(e.target.value)}
+                  placeholder="Filter supervisor by name, email, or branch..."
+                  className="w-full pl-6 sm:pl-8 pr-2 py-1 sm:py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] sm:text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs shrink-0 flex-nowrap">
+              {/* Branch Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <Building2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-sup-branch-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Branch:
+                </label>
+                <select
+                  id="filter-sup-branch-select"
+                  value={supBranchFilter}
+                  onChange={(e) => setSupBranchFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[100px] sm:max-w-[125px] truncate"
+                >
+                  <option value="ALL">All Branches ({branches.length})</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Supervisor Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <UserCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-sup-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Supervisor:
+                </label>
+                <select
+                  id="filter-sup-select"
+                  value={supSupervisorFilter}
+                  onChange={(e) => setSupSupervisorFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
+                >
+                  <option value="ALL">All Supervisors ({supervisors.length})</option>
+                  {supervisors.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.branch})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Agent Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-sup-agent-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Agent:
+                </label>
+                <select
+                  id="filter-sup-agent-select"
+                  value={supAgentFilter}
+                  onChange={(e) => setSupAgentFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
+                >
+                  <option value="ALL">All Agents ({teamMembers.length})</option>
+                  {teamMembers.map(a => (
+                    <option key={a.id} value={a.id}>{a.name} ({a.branch})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort By Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <ArrowUpDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="sort-sup-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Sort:
+                </label>
+                <select
+                  id="sort-sup-select"
+                  value={supSortField}
+                  onChange={(e) => setSupSortField(e.target.value as any)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[95px] sm:max-w-[120px] truncate"
+                >
+                  <option value="name">Supervisor Name</option>
+                  <option value="agentCount">Agents Supervised</option>
+                  <option value="totalLeads">All Excel Leads</option>
+                  <option value="called">Team Calls</option>
+                  <option value="success">Team Conversions</option>
+                  <option value="conversion">Conversion Rate %</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setSupSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="px-1.5 py-0.5 text-[9px] font-bold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 rounded cursor-pointer transition-colors"
+                  title={supSortDirection === 'asc' ? 'Ascending (Click for Descending)' : 'Descending (Click for Ascending)'}
+                >
+                  {supSortDirection === 'asc' ? '▲' : '▼'}
+                </button>
+              </div>
+
+              {(supBranchFilter !== 'ALL' || supSupervisorFilter !== 'ALL' || supAgentFilter !== 'ALL' || supSearchQuery || supSortField !== 'name' || supSortDirection !== 'asc') && (
+                <button
+                  onClick={() => {
+                    setSupBranchFilter('ALL');
+                    setSupSupervisorFilter('ALL');
+                    setSupAgentFilter('ALL');
+                    setSupSearchQuery('');
+                    setSupSortField('name');
+                    setSupSortDirection('asc');
+                  }}
+                  className="px-2 py-1 text-[10px] sm:text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1 border border-red-200"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white border border-slate-200/90 rounded-xl sm:rounded-2xl shadow-xs overflow-hidden">
             <div className="px-2.5 sm:px-6 py-2 sm:py-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between flex-wrap gap-1.5 sm:gap-2">
               <div>
@@ -1329,7 +2007,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </p>
               </div>
               <span className="hidden sm:inline-flex items-center text-[9.5px] sm:text-xs font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 bg-blue-50 text-blue-700 rounded-lg sm:rounded-xl border border-blue-200">
-                {supervisors.length} Supervisors Active
+                {filteredSupervisorSummaries.length} of {supervisors.length} Supervisors Active
               </span>
             </div>
 
@@ -1348,18 +2026,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {supervisorSummaries.length === 0 ? (
+                  {filteredSupervisorSummaries.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-12 text-center text-slate-400">
                         <UserCheck className="w-6 h-6 mx-auto mb-1.5 text-slate-300" />
-                        <div className="font-semibold text-slate-600 text-xs">No Regional Supervisors Registered Yet</div>
+                        <div className="font-semibold text-slate-600 text-xs">No Regional Supervisors Found Matching Filters</div>
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          Create supervisor accounts via "Manage Users & Roles" to begin overseeing regional branch calling teams.
+                          Try adjusting your branch or search keyword to view supervisors.
                         </p>
                       </td>
                     </tr>
                   ) : (
-                    supervisorSummaries.map((sup) => (
+                    filteredSupervisorSummaries.map((sup) => (
                     <tr key={sup.id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-2 sm:py-3.5 px-2 sm:px-4">
                         <div className="font-bold text-slate-900 text-[10.5px] sm:text-xs flex items-center gap-1 sm:gap-1.5">
@@ -1409,6 +2087,127 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* ======================================================== */}
       {activeSection === 'appointments' && (
         <div className="space-y-4">
+          {/* Filter / Search Bar for Appointments */}
+          <div className="bg-white rounded-xl sm:rounded-2xl p-2 sm:p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-1.5 sm:gap-2.5 text-[10px] sm:text-xs overflow-x-auto custom-scrollbar">
+            <div className="flex items-center gap-1.5 shrink-0 min-w-[140px] max-w-[200px]">
+              <div className="relative w-full">
+                <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={appSearchQuery}
+                  onChange={(e) => setAppSearchQuery(e.target.value)}
+                  placeholder="Filter customer, agent, phone, or branch..."
+                  className="w-full pl-6 sm:pl-8 pr-2 py-1 sm:py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] sm:text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs shrink-0 flex-nowrap">
+              {/* Branch Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <Building2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-app-branch-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Branch:
+                </label>
+                <select
+                  id="filter-app-branch-select"
+                  value={appBranchFilter}
+                  onChange={(e) => setAppBranchFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[100px] sm:max-w-[125px] truncate"
+                >
+                  <option value="ALL">All Branches ({branches.length})</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Supervisor Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <UserCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-app-sup-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Supervisor:
+                </label>
+                <select
+                  id="filter-app-sup-select"
+                  value={appSupervisorFilter}
+                  onChange={(e) => setAppSupervisorFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
+                >
+                  <option value="ALL">All Supervisors ({supervisors.length})</option>
+                  {supervisors.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.branch})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Agent Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-app-agent-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Agent:
+                </label>
+                <select
+                  id="filter-app-agent-select"
+                  value={appAgentFilter}
+                  onChange={(e) => setAppAgentFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
+                >
+                  <option value="ALL">All Agents ({availableAppAgents.length})</option>
+                  {availableAppAgents.map(a => (
+                    <option key={a.id} value={a.id}>{a.name} ({a.branch})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort By Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <ArrowUpDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="sort-app-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Sort:
+                </label>
+                <select
+                  id="sort-app-select"
+                  value={appSortField}
+                  onChange={(e) => setAppSortField(e.target.value as any)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[95px] sm:max-w-[120px] truncate"
+                >
+                  <option value="appointment">Scheduled Time</option>
+                  <option value="customerName">Customer Name</option>
+                  <option value="agentName">Assigned Agent</option>
+                  <option value="branch">Branch / Area</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setAppSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="px-1.5 py-0.5 text-[9px] font-bold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 rounded cursor-pointer transition-colors"
+                  title={appSortDirection === 'asc' ? 'Ascending (Click for Descending)' : 'Descending (Click for Ascending)'}
+                >
+                  {appSortDirection === 'asc' ? '▲' : '▼'}
+                </button>
+              </div>
+
+              {/* Reset Filters */}
+              {(appBranchFilter !== 'ALL' || appSupervisorFilter !== 'ALL' || appAgentFilter !== 'ALL' || appSearchQuery.trim() || appSortField !== 'appointment' || appSortDirection !== 'asc') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppBranchFilter('ALL');
+                    setAppSupervisorFilter('ALL');
+                    setAppAgentFilter('ALL');
+                    setAppSearchQuery('');
+                    setAppSortField('appointment');
+                    setAppSortDirection('asc');
+                  }}
+                  className="px-2 py-1 text-[10px] sm:text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1 border border-red-200"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white border border-slate-200/90 rounded-xl sm:rounded-2xl shadow-xs overflow-hidden">
             <div className="px-2.5 sm:px-6 py-2 sm:py-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between flex-wrap gap-1.5 sm:gap-2">
               <div>
@@ -1421,7 +2220,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </p>
               </div>
               <span className="hidden sm:inline-flex items-center text-[9.5px] sm:text-xs font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 bg-red-50 text-red-700 rounded-lg sm:rounded-xl border border-red-200">
-                {allAppointments.length} Booked Callbacks
+                {filteredAppointments.length} of {allAppointments.length} Booked Callbacks
               </span>
             </div>
 
@@ -1438,15 +2237,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {allAppointments.length === 0 ? (
+                  {filteredAppointments.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-400">
                         <AlertCircle className="w-6 h-6 mx-auto mb-1 text-slate-300" />
-                        No upcoming appointments currently scheduled.
+                        No upcoming appointments currently match your filters.
                       </td>
                     </tr>
                   ) : (
-                    allAppointments.map((app) => (
+                    filteredAppointments.map((app) => (
                       <tr key={app.id} className="hover:bg-slate-50 transition-colors">
                         <td className="py-2 sm:py-3 px-2 sm:px-4 font-bold text-slate-900 text-[10px] sm:text-xs">
                           {app.customerName}
@@ -1465,8 +2264,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <td className="py-2 sm:py-3 px-1.5 sm:px-3 font-medium text-slate-800 text-[10px] sm:text-xs">
                           {app.assignedAgentName}
                         </td>
-                        <td className="py-2 sm:py-3 px-1.5 sm:px-3 text-slate-600 max-w-sm truncate text-[10px] sm:text-xs" title={app.feedbackNote}>
-                          {app.feedbackNote || <span className="text-slate-400 italic">Callback requested</span>}
+                        <td className="py-2 sm:py-3 px-1.5 sm:px-3 text-slate-700 w-64 max-w-[260px] sm:max-w-xs md:max-w-sm align-top">
+                          <div className="w-full whitespace-normal break-words [overflow-wrap:anywhere] [word-break:break-word] leading-relaxed text-[10px] sm:text-xs text-slate-700" title={app.feedbackNote}>
+                            {app.feedbackNote || <span className="text-slate-400 italic">Callback requested</span>}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -1482,50 +2283,168 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* SECTION 5: LIVE ACTIVITY & AUDIT TELEMETRY               */}
       {/* ======================================================== */}
       {activeSection === 'activityLogs' && (
-        <div className="bg-white border border-slate-200/90 rounded-xl sm:rounded-2xl shadow-xs overflow-hidden">
-          <div className="px-2.5 sm:px-6 py-2 sm:py-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between flex-wrap gap-1.5 sm:gap-2">
-            <div>
-              <h3 className="font-bold text-slate-900 text-[10px] sm:text-sm flex items-center gap-1.5 sm:gap-2">
-                <Activity className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 shrink-0" />
-                <span>Live Calling Audit Telemetry</span>
-              </h3>
-              <p className="text-[8px] sm:text-xs text-slate-500 mt-0.5">
-                Real-time log of call disposition changes, notes, and callbacks across all team members
-              </p>
+        <div className="space-y-4">
+          {/* Filter / Search Bar for Activity / Audit Logs */}
+          <div className="bg-white rounded-xl sm:rounded-2xl p-2 sm:p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-1.5 sm:gap-2.5 text-[10px] sm:text-xs overflow-x-auto custom-scrollbar">
+            <div className="flex items-center gap-1.5 shrink-0 min-w-[140px] max-w-[200px]">
+              <div className="relative w-full">
+                <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={logSearchQuery}
+                  onChange={(e) => setLogSearchQuery(e.target.value)}
+                  placeholder="Filter logs by operator, customer, or detail..."
+                  className="w-full pl-6 sm:pl-8 pr-2 py-1 sm:py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] sm:text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
             </div>
-            <span className="hidden sm:inline-flex items-center text-[9.5px] sm:text-xs font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 bg-slate-100 text-slate-700 rounded-lg sm:rounded-xl">
-              {activityLogs.length} Events Recorded
-            </span>
+
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs shrink-0 flex-nowrap">
+              {/* Branch Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <Building2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-log-branch-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Branch:
+                </label>
+                <select
+                  id="filter-log-branch-select"
+                  value={logBranchFilter}
+                  onChange={(e) => setLogBranchFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[100px] sm:max-w-[125px] truncate"
+                >
+                  <option value="ALL">All Branches ({branches.length})</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Supervisor Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <UserCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-log-sup-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  Supervisor:
+                </label>
+                <select
+                  id="filter-log-sup-select"
+                  value={logSupervisorFilter}
+                  onChange={(e) => setLogSupervisorFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
+                >
+                  <option value="ALL">All Supervisors ({supervisors.length})</option>
+                  {supervisors.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.branch})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Agent / User Filter Pill */}
+              <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                <label htmlFor="filter-log-user-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                  User:
+                </label>
+                <select
+                  id="filter-log-user-select"
+                  value={logUserFilter}
+                  onChange={(e) => setLogUserFilter(e.target.value)}
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
+                >
+                  <option value="ALL">All Operators ({availableLogUsers.length})</option>
+                  {availableLogUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.role === 'TEAM_MEMBER' ? 'Agent' : 'Sup'} - {u.branch})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Action Filter Pill */}
+              {uniqueLogActions.length > 0 && (
+                <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
+                  <SlidersHorizontal className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+                  <label htmlFor="filter-log-action-select" className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tight shrink-0">
+                    Action:
+                  </label>
+                  <select
+                    id="filter-log-action-select"
+                    value={logActionFilter}
+                    onChange={(e) => setLogActionFilter(e.target.value)}
+                    className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[95px] sm:max-w-[120px] truncate"
+                  >
+                    <option value="ALL">All Actions</option>
+                    {uniqueLogActions.map(action => (
+                      <option key={action} value={action}>{action.replace(/_/g, ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Reset Filters */}
+              {(logBranchFilter !== 'ALL' || logSupervisorFilter !== 'ALL' || logUserFilter !== 'ALL' || logActionFilter !== 'ALL' || logSearchQuery.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLogBranchFilter('ALL');
+                    setLogSupervisorFilter('ALL');
+                    setLogUserFilter('ALL');
+                    setLogActionFilter('ALL');
+                    setLogSearchQuery('');
+                    setLogSortDirection('desc');
+                  }}
+                  className="px-2 py-1 text-[10px] sm:text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1 border border-red-200"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
-            {activityLogs.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-[10px] sm:text-xs">
-                No activity logs recorded yet.
+          <div className="bg-white border border-slate-200/90 rounded-xl sm:rounded-2xl shadow-xs overflow-hidden">
+            <div className="px-2.5 sm:px-6 py-2 sm:py-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between flex-wrap gap-1.5 sm:gap-2">
+              <div>
+                <h3 className="font-bold text-slate-900 text-[10px] sm:text-sm flex items-center gap-1.5 sm:gap-2">
+                  <Activity className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 shrink-0" />
+                  <span>Live Calling Audit Telemetry</span>
+                </h3>
+                <p className="text-[8px] sm:text-xs text-slate-500 mt-0.5">
+                  Real-time log of call disposition changes, notes, and callbacks across all team members
+                </p>
               </div>
-            ) : (
-              activityLogs.map((log) => (
-                <div key={log.id} className="p-2.5 sm:p-4 hover:bg-slate-50 flex items-center justify-between gap-2 sm:gap-3 text-[10px] sm:text-xs">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700 text-[8.5px] sm:text-[10px] shrink-0">
-                      {log.userName.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="font-bold text-slate-900 text-[10.5px] sm:text-xs">
-                        {log.userName}{' '}
-                        <span className="text-slate-400 font-normal">({log.userRole})</span>
-                      </div>
-                      <div className="text-slate-600 mt-0.5 text-[9.5px] sm:text-xs">
-                        Target: <strong className="text-slate-800">{log.customerName}</strong> • {log.details}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-[9px] sm:text-[11px] font-mono text-slate-400 shrink-0">
-                    {log.timestamp}
-                  </div>
+              <span className="hidden sm:inline-flex items-center text-[9.5px] sm:text-xs font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 bg-slate-100 text-slate-700 rounded-lg sm:rounded-xl">
+                {filteredActivityLogs.length} of {activityLogs.length} Events Recorded
+              </span>
+            </div>
+
+            <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+              {filteredActivityLogs.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-[10px] sm:text-xs">
+                  <AlertCircle className="w-6 h-6 mx-auto mb-1 text-slate-300" />
+                  No activity logs matching the selected filters.
                 </div>
-              ))
-            )}
+              ) : (
+                filteredActivityLogs.map((log) => (
+                  <div key={log.id} className="p-2.5 sm:p-4 hover:bg-slate-50 flex items-center justify-between gap-2 sm:gap-3 text-[10px] sm:text-xs">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700 text-[8.5px] sm:text-[10px] shrink-0">
+                        {log.userName.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 text-[10.5px] sm:text-xs">
+                          {log.userName}{' '}
+                          <span className="text-slate-400 font-normal">({log.userRole})</span>
+                        </div>
+                        <div className="text-slate-600 mt-0.5 text-[9.5px] sm:text-xs">
+                          Target: <strong className="text-slate-800">{log.customerName}</strong> • {log.details}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-[9px] sm:text-[11px] font-mono text-slate-400 shrink-0">
+                      {log.timestamp}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

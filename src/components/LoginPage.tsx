@@ -43,11 +43,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   // Password Force Change state for newly created users or users with standard 'amal123' password
   const [pendingForceChangeUser, setPendingForceChangeUser] = useState<User | null>(null);
 
-  // Forgot Password state
-  const [isForgotPassword, setIsForgotPassword] = useState<boolean>(false);
-  const [resetEmail, setResetEmail] = useState<string>('');
-  const [resetSubmitted, setResetSubmitted] = useState<boolean>(false);
-
   const handleLogin = (userToLogin?: User) => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -105,16 +100,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     onLoginSuccess(updatedUser);
   };
 
-  const handleResetPassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    // Password reset functionality is currently disabled pending email service setup
-    setTimeout(() => {
-      setIsLoading(false);
-      setResetSubmitted(true);
-    }, 600);
-  };
-
   return (
     <div className="min-h-screen bg-slate-50/70 text-slate-900 flex flex-col items-center justify-center p-3 sm:p-6 font-sans relative overflow-hidden">
       {/* Ambient background decoration */}
@@ -141,12 +126,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               MYCASH CALLING PORTAL
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-1">
-              {isForgotPassword ? 'Reset your corporate account password' : 'Sign in to access your call workspace'}
+              Sign in to access your call workspace
             </p>
           </div>
 
-          {!isForgotPassword ? (
-            /* Sign In Form */
+            {/* Sign In Form */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -233,78 +217,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 )}
               </button>
             </form>
-          ) : (
-            /* Forgot Password Form */
-            <form onSubmit={handleResetPassword} className="space-y-3.5 sm:space-y-4">
-              {resetSubmitted ? (
-                <div className="p-4 bg-emerald-50/90 border border-emerald-200/80 rounded-2xl text-xs text-emerald-800 flex flex-col gap-2.5 text-center">
-                  <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mx-auto">
-                    <CheckCircle2 className="w-5 h-5" />
-                  </div>
-                  <div className="font-bold text-sm text-emerald-950">Reset Instructions Sent</div>
-                  <p className="text-slate-600 leading-relaxed">
-                    We sent password recovery instructions to <span className="font-semibold text-slate-900">{resetEmail || 'your email'}</span>.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsForgotPassword(false);
-                      setResetSubmitted(false);
-                    }}
-                    className="mt-2 inline-flex items-center justify-center gap-1.5 text-xs text-red-600 hover:text-red-700 font-bold hover:underline cursor-pointer"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Back to Sign In</span>
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="block text-[11px] sm:text-xs font-semibold text-slate-700 mb-1.5 tracking-wide">
-                      Work Email Address
-                    </label>
-                    <div className="relative group">
-                      <Mail className="w-4 h-4 text-slate-400 group-focus-within:text-red-600 transition-colors absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="email"
-                        required
-                        value={resetEmail}
-                        onChange={(e) => setResetEmail(e.target.value)}
-                        placeholder="name@mycash.portal"
-                        className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50/80 border border-slate-200 rounded-xl text-slate-900 text-xs sm:text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:border-red-500 focus:ring-4 focus:ring-red-500/10 transition-all font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full h-10 sm:h-11 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 active:scale-[0.99] disabled:opacity-50 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-red-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Sending Request...</span>
-                      </>
-                    ) : (
-                      <span>Send Reset Link</span>
-                    )}
-                  </button>
-
-                  <div className="text-center pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsForgotPassword(false)}
-                      className="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1.5 font-medium transition-colors cursor-pointer"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Back to Sign In</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </form>
-          )}
 
           {/* Trust badge footer inside card */}
           <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[10.5px] text-slate-400 font-medium">

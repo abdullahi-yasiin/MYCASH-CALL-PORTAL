@@ -641,7 +641,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               id="btn-admin-ai-intelligence"
               onClick={onOpenAiIntelligence}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-[10px] sm:text-[11px] font-black rounded-lg transition-all border border-red-500/50 shadow-md cursor-pointer active:scale-95"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 py-1 sm:px-3.5 sm:py-2 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-[8px] sm:text-[11px] font-black rounded-lg transition-all border border-red-500/50 shadow-md cursor-pointer active:scale-95"
               title="Launch AI Intelligence & Feedback Analytics (Somali Language & PDF Report)"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse shrink-0" />
@@ -653,11 +653,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               id="btn-admin-manage-rbac"
               onClick={onOpenUserManagement}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 py-1 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[8px] sm:text-[11px] font-bold rounded-lg transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95"
               title="Configure system users, roles, and granular permission matrix"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span>Roles & Permissions</span>
+              <span className="hidden sm:inline">Roles & Permissions</span>
+              <span className="sm:hidden">Personell</span>
             </button>
           )}
 
@@ -665,23 +666,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               id="btn-admin-bulk-user-import"
               onClick={onOpenBulkUserImport}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95"
+              className="hidden sm:flex sm:flex-initial items-center justify-center gap-1 sm:gap-1.5 px-1.5 py-0.5 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[8px] sm:text-[11px] font-bold rounded-lg transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95"
               title="Bulk import users via Excel, Word Doc, or PDF (HQ Admin only)"
             >
               <UploadCloud className="w-3.5 h-3.5 text-red-400 shrink-0" />
               <span>Bulk User Import</span>
-            </button>
-          )}
-
-          {onOpenEmailConfig && currentUser.role === 'HQ_ADMIN' && (
-            <button
-              id="btn-admin-email-config"
-              onClick={onOpenEmailConfig}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95"
-              title="Configure Mailgun API & Send Welcome Email Invites to Users"
-            >
-              <Mail className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>Email Invites (Mailgun)</span>
             </button>
           )}
 
@@ -690,7 +679,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               id="btn-admin-upload-new-excel"
               onClick={() => setIsUploadDropdownOpen(!isUploadDropdownOpen)}
-              className={`w-full sm:w-auto flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 py-2 sm:px-3 sm:py-2 bg-red-600 hover:bg-red-500 text-white text-[10px] sm:text-[11px] font-bold rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 ${
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 py-1 sm:px-3 sm:py-1.5 bg-red-600 hover:bg-red-500 text-white text-[8px] sm:text-[11px] font-bold rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 ${
                 isUploadDropdownOpen ? 'bg-red-500 ring-2 ring-red-400' : ''
               }`}
               title="Import additional customer Excel sheet and select agent to assign"

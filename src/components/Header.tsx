@@ -204,7 +204,7 @@ export const Header: React.FC<HeaderProps> = ({
               id="btn-refresh-dashboard"
               onClick={handleTriggerRefresh}
               disabled={isRefreshing}
-              className={`px-2 py-1 bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700 text-slate-200 hover:text-white text-[10px] sm:text-[11px] font-semibold rounded-lg sm:rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+              className={`px-1.5 py-1 bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700 text-slate-200 hover:text-white text-[9px] sm:text-[11px] font-semibold rounded-lg sm:rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
                 isRefreshing ? 'opacity-80 text-blue-400' : ''
               }`}
               title="Manually re-fetch and re-calculate roster metrics"
@@ -221,7 +221,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="btn-header-ai-intelligence"
                 onClick={onOpenAiIntelligence}
-                className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 active:scale-95 text-white text-[10px] sm:text-[11px] font-bold rounded-lg sm:rounded-xl shadow-xs transition-all cursor-pointer border border-red-500/40 shrink-0"
+                className="hidden sm:flex items-center gap-1 sm:gap-1.5 px-2 py-1 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 active:scale-95 text-white text-[9px] sm:text-[11px] font-bold rounded-lg sm:rounded-xl shadow-xs transition-all cursor-pointer border border-red-500/40 shrink-0"
                 title="Open AI Intelligence & Feedback Analytics with Af-Soomaali comprehension, charts, and downloadable PDF report"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse shrink-0" />
@@ -234,7 +234,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="btn-toggle-focus-mode"
                 onClick={onToggleFocusMode}
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer border shrink-0 ${
+                className={`flex items-center gap-1 px-1.5 py-1 rounded-lg sm:rounded-xl text-[9px] sm:text-[11px] font-bold transition-all cursor-pointer border shrink-0 ${
                   isFocusModeActive
                     ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-xs'
                     : 'bg-blue-950/70 hover:bg-blue-900/70 border-blue-700/60 text-blue-300 hover:text-blue-200'
@@ -253,7 +253,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="relative shrink-0">
                 <button
                   onClick={() => setExportMenuOpen(!exportMenuOpen)}
-                  className="flex items-center gap-1 px-2 py-1 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-[10px] sm:text-[11px] font-semibold rounded-lg sm:rounded-xl border border-slate-700 transition-colors cursor-pointer"
+                  className="flex items-center gap-1 px-1.5 py-1 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-[9px] sm:text-[11px] font-semibold rounded-lg sm:rounded-xl border border-slate-700 transition-colors cursor-pointer"
                   title="Export data and executive reports"
                 >
                   <Download className="w-3.5 h-3.5 text-blue-400 shrink-0" />
@@ -298,7 +298,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="btn-manage-users"
                 onClick={onOpenUserManagement}
-                className="hidden sm:flex px-2 py-1 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-[10px] sm:text-[11px] font-medium rounded-lg sm:rounded-xl border border-slate-700 transition-colors items-center gap-1 cursor-pointer shrink-0"
+                className="hidden sm:flex px-1.5 py-1 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-[9px] sm:text-[11px] font-medium rounded-lg sm:rounded-xl border border-slate-700 transition-colors items-center gap-1 cursor-pointer shrink-0"
                 title="Manage team members and branches"
               >
                 <Users className="w-3.5 h-3.5 text-blue-400 shrink-0" />
@@ -310,7 +310,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               id="btn-view-login-screen"
               onClick={onLogout}
-              className="flex items-center gap-1 px-2 py-1 bg-slate-800/90 hover:bg-rose-950/60 hover:text-rose-300 hover:border-rose-700/60 text-slate-200 text-[10px] sm:text-[11px] font-medium rounded-lg sm:rounded-xl border border-slate-700 transition-colors cursor-pointer shrink-0 group"
+              className="flex items-center gap-1 px-1.5 py-1 bg-slate-800/90 hover:bg-rose-950/60 hover:text-rose-300 hover:border-rose-700/60 text-slate-200 text-[9px] sm:text-[11px] font-medium rounded-lg sm:rounded-xl border border-slate-700 transition-colors cursor-pointer shrink-0 group"
               title="Sign out and return to login screen"
             >
               <LogOut className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-400 shrink-0" />

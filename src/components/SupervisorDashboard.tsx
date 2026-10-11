@@ -257,7 +257,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             <button
               id="btn-supervisor-upload-file"
               onClick={() => setIsUploadDropdownOpen(!isUploadDropdownOpen)}
-              className={`w-full sm:w-auto flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 py-2 sm:px-3 sm:py-2 text-[10px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 ${
+              className={`w-full sm:w-auto flex items-center justify-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-3 sm:py-2 text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 ${
                 isUploadDropdownOpen
                   ? 'bg-emerald-500 ring-2 ring-emerald-400 text-white'
                   : 'bg-emerald-600 hover:bg-emerald-500 text-white'
@@ -406,7 +406,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <button
             id="btn-supervisor-add-member"
             onClick={onAddTeamMember}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-blue-600 hover:bg-blue-500 text-white text-[9.5px] sm:text-xs font-bold rounded-md sm:rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-3 sm:py-2 bg-blue-600 hover:bg-blue-500 text-white text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
             title="Create a new team member under your branch"
           >
             <UserPlus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />

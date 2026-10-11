@@ -742,25 +742,6 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                   )}
                 </div>
 
-                <button
-                  id="btn-start-ai-analysis"
-                  onClick={handleRunAnalysis}
-                  disabled={scopedData.records.length === 0 || isAnalyzing}
-                  title={scopedData.records.length === 0 ? "Select branches with active leads" : undefined}
-                  className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-red-600 via-indigo-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-white" />
-                      <span>Synthesizing Intelligence...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 text-amber-200" />
-                      <span>Generate English Intelligence Report</span>
-                    </>
-                  )}
-                </button>
               </div>
             </div>
           ) : (

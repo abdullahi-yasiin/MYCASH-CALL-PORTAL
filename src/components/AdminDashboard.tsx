@@ -90,6 +90,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activeSection, setActiveSection] = useState<'teamExcels' | 'regionalBranches' | 'supervisors' | 'appointments' | 'activityLogs'>('teamExcels');
   
   // Filters & Sort for Section 1: Team Excels
+  const [excelFilterMode, setExcelFilterMode] = useState<'available' | 'all'>('available');
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
   const [selectedAgent, setSelectedAgent] = useState<string>('ALL');
@@ -219,15 +220,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   }, [teamMembers, records, supervisors]);
 
-  // Available agents for team excels based on branch filter
-  const availableTeamAgents = useMemo(() => {
-    if (selectedBranch === 'ALL') return teamMembers;
-    return teamMembers.filter(m => m.branch === selectedBranch);
-  }, [teamMembers, selectedBranch]);
+  // Active Excels (team members with at least 1 customer record in their uploaded Excel)
+  const activeExcelsSummaries = useMemo(() => {
+    return teamMemberSummaries.filter(s => s.totalLeads > 0);
+  }, [teamMemberSummaries]);
+  const activeExcelsCount = activeExcelsSummaries.length;
+  const totalRecordsInAvailableExcels = useMemo(() => {
+    return activeExcelsSummaries.reduce((sum, s) => sum + s.totalLeads, 0);
+  }, [activeExcelsSummaries]);
 
-  // Filtered team member summaries with Agent, Branch, Supervisor, Search, and Sort options
+  // Available agents for team excels based on branch filter & excel availability mode
+  const availableTeamAgents = useMemo(() => {
+    let list = teamMembers;
+    if (selectedBranch !== 'ALL') {
+      list = list.filter(m => m.branch === selectedBranch);
+    }
+    if (excelFilterMode === 'available') {
+      list = list.filter(m => {
+        const summary = teamMemberSummaries.find(s => s.agent.id === m.id);
+        return summary ? summary.totalLeads > 0 : false;
+      });
+    }
+    return list;
+  }, [teamMembers, selectedBranch, excelFilterMode, teamMemberSummaries]);
+
+  // Filtered team member summaries with Agent, Branch, Supervisor, Search, Sort, and Excel Availability filter
   const filteredTeamSummaries = useMemo(() => {
-    const result = teamMemberSummaries.filter(s => {
+    const baseList = excelFilterMode === 'available'
+      ? teamMemberSummaries.filter(s => s.totalLeads > 0)
+      : teamMemberSummaries;
+
+    const result = baseList.filter(s => {
       const matchBranch = selectedBranch === 'ALL' || s.branch === selectedBranch;
       const matchSup = selectedSupervisor === 'ALL' || s.supervisorId === selectedSupervisor;
       const matchAgent = selectedAgent === 'ALL' || s.agent.id === selectedAgent || s.agentName === selectedAgent;
@@ -247,7 +270,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const numB = Number(bVal || 0);
       return teamSortDirection === 'asc' ? numA - numB : numB - numA;
     });
-  }, [teamMemberSummaries, selectedBranch, selectedSupervisor, selectedAgent, searchQuery, teamSortField, teamSortDirection]);
+  }, [teamMemberSummaries, excelFilterMode, selectedBranch, selectedSupervisor, selectedAgent, searchQuery, teamSortField, teamSortDirection]);
 
   // 2. Compute automated summary for REGIONAL BRANCHES
   const branchSummaries = useMemo(() => {
@@ -346,12 +369,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   }, [supervisors, records, teamMembers]);
 
-  // All upcoming appointments across all team members' Excels
+  // All upcoming appointments across team members' Excels (adheres to excelFilterMode & active Excels)
   const allAppointments = useMemo(() => {
-    return records
-      .filter(r => r.appointment && r.appointment.trim() !== '')
-      .sort((a, b) => (a.appointment > b.appointment ? 1 : -1));
-  }, [records]);
+    let list = records.filter(r => r.appointment && r.appointment.trim() !== '');
+    if (excelFilterMode === 'available') {
+      const activeAgentIds = new Set(teamMemberSummaries.filter(s => s.totalLeads > 0).map(s => s.agent.id));
+      const activeAgentNames = new Set(teamMemberSummaries.filter(s => s.totalLeads > 0).map(s => s.agentName.trim().toLowerCase()));
+      list = list.filter(r => 
+        (r.assignedAgentId && activeAgentIds.has(r.assignedAgentId)) ||
+        (r.assignedAgentName && activeAgentNames.has(r.assignedAgentName.trim().toLowerCase()))
+      );
+    }
+    return list.sort((a, b) => (a.appointment > b.appointment ? 1 : -1));
+  }, [records, excelFilterMode, teamMemberSummaries]);
 
   // Filtered Regional Branches with Branch, Supervisor, Agent, Search, and Sort options
   const filteredBranchSummaries = useMemo(() => {
@@ -521,14 +551,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   }, [activityLogs, logUserFilter, logBranchFilter, logSupervisorFilter, logActionFilter, logSearchQuery, logSortDirection, teamMembers, supervisors]);
 
-  // High-level enterprise aggregates
-  const totalEnterpriseLeads = records.length;
-  const totalEnterpriseCalled = records.filter(r => r.hasBeenCalled || (r.status && r.status !== 'Uncalled')).length;
-  const totalEnterpriseUncalled = records.filter(r => !r.hasBeenCalled && (!r.status || r.status === 'Uncalled')).length;
-  const totalEnterpriseSuccess = records.filter(r => r.status === 'Success').length;
-  const totalEnterpriseInProgress = records.filter(r => r.status === 'In-progress').length;
-  const totalEnterpriseNotAvailable = records.filter(r => r.status === 'Not Available').length;
-  const totalEnterpriseRejected = records.filter(r => r.status === 'Rejected').length;
+  // High-level enterprise aggregates - strictly calculated from available customer records in available Excels
+  const totalEnterpriseLeads = totalRecordsInAvailableExcels;
+  const totalEnterpriseCalled = useMemo(() => activeExcelsSummaries.reduce((sum, s) => sum + s.called, 0), [activeExcelsSummaries]);
+  const totalEnterpriseUncalled = useMemo(() => activeExcelsSummaries.reduce((sum, s) => sum + s.uncalled, 0), [activeExcelsSummaries]);
+  const totalEnterpriseSuccess = useMemo(() => activeExcelsSummaries.reduce((sum, s) => sum + s.success, 0), [activeExcelsSummaries]);
+  const totalEnterpriseInProgress = useMemo(() => activeExcelsSummaries.reduce((sum, s) => sum + s.inProgress, 0), [activeExcelsSummaries]);
+  const totalEnterpriseNotAvailable = useMemo(() => activeExcelsSummaries.reduce((sum, s) => sum + s.notAvailable, 0), [activeExcelsSummaries]);
+  const totalEnterpriseRejected = useMemo(() => activeExcelsSummaries.reduce((sum, s) => sum + s.rejected, 0), [activeExcelsSummaries]);
   const totalEnterpriseAppointments = allAppointments.length;
   const enterpriseConversionRate = totalEnterpriseCalled > 0 
     ? Math.round((totalEnterpriseSuccess / totalEnterpriseCalled) * 100) 
@@ -627,25 +657,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span>MyCash Tele-Sales Performance Summary</span>
           </h2>
           <p className="text-[8.5px] sm:text-xs text-slate-300 max-w-2xl mt-0.5 leading-normal sm:leading-relaxed">
-            Auto-summarising real-time operational data aggregated across <strong>{teamMembers.length} team members' Excels</strong>, <strong>{branches.length} branches</strong>, and <strong>{supervisors.length} supervisors</strong>.
+            Auto-summarising real-time operational data aggregated across <strong>{activeExcelsCount} available team member Excels</strong> ({totalRecordsInAvailableExcels.toLocaleString()} customer records), <strong>{branches.length} branches</strong>, and <strong>{supervisors.length} supervisors</strong>.
           </p>
         </div>
 
-        {/* Selected target element: Action Buttons container (visible across all views including mobile) */}
+        {/* Selected target element: Action Buttons container (equal size on mobile view) */}
         <div 
           id="admin-banner-action-buttons" 
-          className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t border-slate-800/80 md:border-t-0"
+          className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-2 shrink-0 w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t border-slate-800/80 md:border-t-0"
         >
           {/* AI Intelligence & Feedback Analytics Button */}
           {onOpenAiIntelligence && (
             <button
               id="btn-admin-ai-intelligence"
               onClick={onOpenAiIntelligence}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 py-1 sm:px-3.5 sm:py-2 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-[8px] sm:text-[11px] font-black rounded-lg transition-all border border-red-500/50 shadow-md cursor-pointer active:scale-95"
+              className="w-full sm:w-auto sm:flex-initial h-8 sm:h-9 flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-3 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-red-500/50 shadow-xs cursor-pointer active:scale-95 min-w-0"
               title="Launch AI Intelligence & Feedback Analytics (Somali Language & PDF Report)"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse shrink-0" />
-              <span>AI Intelligence</span>
+              <span className="truncate">AI Intelligence</span>
             </button>
           )}
 
@@ -653,12 +683,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               id="btn-admin-manage-rbac"
               onClick={onOpenUserManagement}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 py-1 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[8px] sm:text-[11px] font-bold rounded-lg transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95"
+              className="w-full sm:w-auto sm:flex-initial h-8 sm:h-9 flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-3 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95 min-w-0"
               title="Configure system users, roles, and granular permission matrix"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span className="hidden sm:inline">Roles & Permissions</span>
-              <span className="sm:hidden">Personell</span>
+              <span className="hidden sm:inline truncate">Roles & Permissions</span>
+              <span className="sm:hidden truncate">Personnel</span>
             </button>
           )}
 
@@ -666,20 +696,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               id="btn-admin-bulk-user-import"
               onClick={onOpenBulkUserImport}
-              className="hidden sm:flex sm:flex-initial items-center justify-center gap-1 sm:gap-1.5 px-1.5 py-0.5 sm:px-3 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[8px] sm:text-[11px] font-bold rounded-lg transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95"
+              className="hidden sm:flex sm:flex-initial h-8 sm:h-9 items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95 min-w-0"
               title="Bulk import users via Excel, Word Doc, or PDF (HQ Admin only)"
             >
               <UploadCloud className="w-3.5 h-3.5 text-red-400 shrink-0" />
-              <span>Bulk User Import</span>
+              <span className="truncate">Bulk User Import</span>
             </button>
           )}
 
           {/* Upload File with Agent Selection Dropdown */}
-          <div ref={uploadDropdownRef} className="relative flex-1 sm:flex-initial min-w-0">
+          <div ref={uploadDropdownRef} className="relative w-full sm:w-auto sm:flex-initial min-w-0 h-8 sm:h-9">
             <button
               id="btn-admin-upload-new-excel"
               onClick={() => setIsUploadDropdownOpen(!isUploadDropdownOpen)}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 py-1 sm:px-3 sm:py-1.5 bg-red-600 hover:bg-red-500 text-white text-[8px] sm:text-[11px] font-bold rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 ${
+              className={`w-full h-full flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-3 bg-red-600 hover:bg-red-500 text-white text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-red-500/80 shadow-2xs cursor-pointer active:scale-95 min-w-0 ${
                 isUploadDropdownOpen ? 'bg-red-500 ring-2 ring-red-400' : ''
               }`}
               title="Import additional customer Excel sheet and select agent to assign"
@@ -855,7 +885,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {totalEnterpriseLeads}
           </div>
           <div className="text-[9px] sm:text-[10px] text-slate-500 truncate mt-0.5 sm:mt-1">
-            Across {teamMembers.length} Agent Excels
+            Across {activeExcelsCount} Available Agent Excel{activeExcelsCount === 1 ? '' : 's'}
           </div>
         </div>
 
@@ -1060,6 +1090,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
+            {/* Availability Mode Toggle */}
+            <div className="inline-flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 shrink-0">
+              <button
+                type="button"
+                onClick={() => setExcelFilterMode('available')}
+                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                  excelFilterMode === 'available'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Show only team members with available uploaded Excels"
+              >
+                Available Excels ({activeExcelsCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setExcelFilterMode('all')}
+                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                  excelFilterMode === 'all'
+                    ? 'bg-slate-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Show all registered team members"
+              >
+                All Agents ({teamMembers.length})
+              </button>
+            </div>
+
             <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs shrink-0 flex-nowrap">
               {/* Branch Filter Pill */}
               <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg px-1.5 sm:px-2 py-1 text-slate-700 shadow-2xs shrink-0">
@@ -1109,12 +1167,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   id="filter-team-agent-select"
                   value={selectedAgent}
                   onChange={(e) => setSelectedAgent(e.target.value)}
-                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[130px] truncate"
+                  className="bg-transparent text-[10px] sm:text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer max-w-[110px] sm:max-w-[145px] truncate"
                 >
-                  <option value="ALL">All Agents ({availableTeamAgents.length})</option>
-                  {availableTeamAgents.map(a => (
-                    <option key={a.id} value={a.id}>{a.name} ({a.branch})</option>
-                  ))}
+                  <option value="ALL">
+                    {excelFilterMode === 'available' ? `Available Excels (${availableTeamAgents.length})` : `All Agents (${availableTeamAgents.length})`}
+                  </option>
+                  {availableTeamAgents.map(a => {
+                    const leadCount = records.filter(r => (r.assignedAgentId === a.id || (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === a.name.trim().toLowerCase())) && !isRecordAssignedBySupervisor(r)).length;
+                    return (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({leadCount > 0 ? `${leadCount} leads` : '0 leads'} - {a.branch})
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -1152,9 +1217,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               {/* Reset Button */}
-              {(selectedBranch !== 'ALL' || selectedSupervisor !== 'ALL' || selectedAgent !== 'ALL' || searchQuery || teamSortField !== 'agentName' || teamSortDirection !== 'asc') && (
+              {(selectedBranch !== 'ALL' || selectedSupervisor !== 'ALL' || selectedAgent !== 'ALL' || searchQuery || teamSortField !== 'agentName' || teamSortDirection !== 'asc' || excelFilterMode !== 'available') && (
                 <button
                   onClick={() => {
+                    setExcelFilterMode('available');
                     setSelectedBranch('ALL');
                     setSelectedSupervisor('ALL');
                     setSelectedAgent('ALL');
@@ -1184,7 +1250,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </p>
               </div>
               <span className="hidden sm:inline-flex items-center text-[10px] sm:text-xs font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 bg-blue-50 text-blue-700 rounded-lg sm:rounded-xl border border-blue-200">
-                {filteredTeamSummaries.length} Agent Excels Active
+                {activeExcelsCount} Available Agent Excels Active ({totalRecordsInAvailableExcels.toLocaleString()} Leads)
               </span>
             </div>
 

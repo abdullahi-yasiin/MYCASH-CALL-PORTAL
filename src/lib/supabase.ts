@@ -485,6 +485,55 @@ export const supabaseDb = {
     }
   },
 
+  // Delete all customer records that have no valid agent user assigned in cloud database
+  async purgeOrphanedCustomerRecords(validUsers: User[]): Promise<{ deletedCount: number; success: boolean }> {
+    try {
+      console.group('[Supabase DB: purgeOrphanedCustomerRecords]');
+      const { data, error } = await supabase
+        .from('customer_records')
+        .select('id, assigned_agent_id, assigned_agent_name');
+
+      if (error || !data) {
+        console.warn('Supabase purgeOrphanedCustomerRecords query notice:', error?.message);
+        console.groupEnd();
+        return { deletedCount: 0, success: false };
+      }
+
+      const agentUsers = validUsers.filter(u => u.role === 'TEAM_MEMBER');
+      const effectiveAgents = agentUsers.length > 0 ? agentUsers : validUsers;
+      const validAgentIds = new Set(effectiveAgents.map(u => u.id));
+      const validAgentNames = new Set(effectiveAgents.map(u => u.name.trim().toLowerCase()));
+
+      const orphanedIds: string[] = [];
+      for (const row of data) {
+        const agentId = row.assigned_agent_id ? String(row.assigned_agent_id).trim() : '';
+        const agentName = row.assigned_agent_name ? String(row.assigned_agent_name).trim().toLowerCase() : '';
+
+        const hasValidId = agentId && agentId !== 'unassigned' && validAgentIds.has(agentId);
+        const hasValidName = agentName && agentName !== 'unassigned' && validAgentNames.has(agentName);
+
+        if (!hasValidId && !hasValidName) {
+          orphanedIds.push(row.id);
+        }
+      }
+
+      if (orphanedIds.length > 0) {
+        console.log(`[Supabase DB: purgeOrphanedCustomerRecords] Found ${orphanedIds.length} orphaned customer records with no agent user. Purging...`);
+        const success = await this.deleteCustomers(orphanedIds);
+        console.groupEnd();
+        return { deletedCount: orphanedIds.length, success };
+      }
+
+      console.log('[Supabase DB: purgeOrphanedCustomerRecords] Database is clean. No orphaned records found.');
+      console.groupEnd();
+      return { deletedCount: 0, success: true };
+    } catch (err) {
+      console.warn('Supabase purgeOrphanedCustomerRecords error:', err);
+      console.groupEnd();
+      return { deletedCount: 0, success: false };
+    }
+  },
+
   // Fetch users with detailed logging
   async fetchUsers(): Promise<User[] | null> {
     try {
@@ -635,21 +684,58 @@ export const supabaseDb = {
     }
   },
 
-  // Delete user
-  async deleteUser(userId: string): Promise<boolean> {
+  // Delete user and automatically cascade delete all associated customer records from cloud database
+  async deleteUser(userId: string, userName?: string): Promise<boolean> {
     try {
-      const { error } = await supabase
+      console.group(`[Supabase DB: deleteUser] Purging user ${userId} (${userName || 'Unknown'})`);
+
+      // 1. Purge all customer records assigned to this user from customer_records table
+      if (userId) {
+        const { error: errId } = await supabase
+          .from('customer_records')
+          .delete()
+          .eq('assigned_agent_id', userId);
+        if (errId) {
+          console.warn('[Supabase deleteUser] Error removing records by assigned_agent_id:', errId.message);
+        }
+
+        // Also clean up records if supervisor
+        const { error: errSup } = await supabase
+          .from('customer_records')
+          .delete()
+          .eq('supervisor_id', userId);
+        if (errSup) {
+          console.warn('[Supabase deleteUser] Error removing records by supervisor_id:', errSup.message);
+        }
+      }
+
+      if (userName && userName.trim()) {
+        const { error: errName } = await supabase
+          .from('customer_records')
+          .delete()
+          .eq('assigned_agent_name', userName.trim());
+        if (errName) {
+          console.warn('[Supabase deleteUser] Error removing records by assigned_agent_name:', errName.message);
+        }
+      }
+
+      // 2. Delete user account from users table
+      const { error: errUser } = await supabase
         .from('users')
         .delete()
         .eq('id', userId);
 
-      if (error) {
-        console.warn('Supabase deleteUser notice:', error.message);
+      if (errUser) {
+        console.error('[Supabase deleteUser: Error] Failed to delete user from database:', errUser.message);
+        console.groupEnd();
         return false;
       }
+
+      console.log(`[Supabase deleteUser: Success] Successfully deleted user ${userId} and cascaded customer record deletion.`);
+      console.groupEnd();
       return true;
-    } catch (err) {
-      console.warn('Supabase deleteUser error:', err);
+    } catch (err: any) {
+      console.error('[Supabase deleteUser: Exception]', err);
       return false;
     }
   },

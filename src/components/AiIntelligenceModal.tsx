@@ -347,29 +347,29 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-3 overflow-y-auto">
       <div 
-        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-xs sm:text-sm"
         role="dialog"
         aria-modal="true"
         aria-labelledby="ai-modal-title"
       >
         {/* Header Bar */}
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-4 sm:px-6 py-4 flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shadow-md shrink-0">
-              <Sparkles className="w-5 h-5 text-white animate-pulse" />
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-3 sm:px-5 py-3 flex items-center justify-between border-b border-slate-800">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-red-600 flex items-center justify-center shadow-md shrink-0">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-pulse" />
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 id="ai-modal-title" className="text-base sm:text-lg font-black tracking-tight text-white">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <h2 id="ai-modal-title" className="text-xs sm:text-base font-black tracking-tight text-white truncate">
                   AI Intelligence & Feedback Analytics
                 </h2>
-                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-sm text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                <span className="hidden sm:inline-flex px-1.5 py-0.5 rounded-sm text-[9px] sm:text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
                   Powered by Gemini AI
                 </span>
               </div>
-              <p className="text-xs text-slate-300 mt-0.5">
+              <p className="text-[10px] sm:text-xs text-slate-300 mt-0.5 truncate sm:whitespace-normal">
                 Analyzes customer feedback notes from Excel tables (translating Somali notes), categorizing complaints, appreciations, rejections, and coaching calling agents.
               </p>
             </div>
@@ -377,10 +377,10 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+            className="p-1 sm:p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0 ml-2"
             title="Close AI Intelligence Modal"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 

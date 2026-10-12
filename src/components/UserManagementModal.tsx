@@ -20,9 +20,10 @@ import {
   Lock,
   Unlock,
   AlertCircle,
-  UploadCloud
+  UploadCloud,
+  FileSpreadsheet
 } from 'lucide-react';
-import { User, UserRole, BranchInfo, RoleDefinition, AppPermission } from '../types';
+import { User, UserRole, BranchInfo, RoleDefinition, AppPermission, CustomerRecord } from '../types';
 import { ALL_PERMISSIONS, INITIAL_ROLE_DEFINITIONS, checkUserPermission } from '../data/rolesPermissions';
 
 interface UserManagementModalProps {
@@ -32,6 +33,7 @@ interface UserManagementModalProps {
   allUsers: User[];
   branches: BranchInfo[];
   roleDefinitions: RoleDefinition[];
+  records?: CustomerRecord[];
   initialTab?: 'users' | 'roles';
   initialShowAddForm?: boolean;
   onAddUser: (user: User) => Promise<boolean> | void;
@@ -49,6 +51,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   allUsers,
   branches,
   roleDefinitions,
+  records = [],
   initialTab = 'users',
   initialShowAddForm = false,
   onAddUser,
@@ -796,6 +799,11 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                           ? user.customPermissions.length
                           : userRoleDef?.permissions.length || 0;
 
+                        const userRecordCount = records.filter(r => 
+                          r.assignedAgentId === user.id || 
+                          (user.name && r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === user.name.trim().toLowerCase())
+                        ).length;
+
                         return (
                           <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="py-2.5 sm:py-3 px-2.5 sm:px-3.5">
@@ -810,12 +818,20 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                               <div className="text-[9.5px] min-[400px]:text-[10px] sm:text-[10.5px] text-slate-500 mt-0.5 break-all sm:break-normal truncate max-w-[150px] sm:max-w-none" title={user.email}>
                                 {user.email}
                               </div>
-                              {user.phone && (
-                                <div className="text-[8.5px] min-[400px]:text-[9px] sm:text-[9.5px] text-slate-400 font-mono flex items-center gap-1 mt-0.5 whitespace-nowrap">
-                                  <Phone className="w-2.5 h-2.5 shrink-0" />
-                                  <span>{user.phone}</span>
-                                </div>
-                              )}
+                              <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                {user.phone && (
+                                  <div className="text-[8.5px] min-[400px]:text-[9px] sm:text-[9.5px] text-slate-400 font-mono flex items-center gap-1 whitespace-nowrap">
+                                    <Phone className="w-2.5 h-2.5 shrink-0" />
+                                    <span>{user.phone}</span>
+                                  </div>
+                                )}
+                                {userRecordCount > 0 && (
+                                  <div className="inline-flex items-center gap-1 text-[8.5px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200" title={`${userRecordCount} customer lead records in Excel roster`}>
+                                    <FileSpreadsheet className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                                    <span>{userRecordCount} leads</span>
+                                  </div>
+                                )}
+                              </div>
                             </td>
 
                             <td className="py-2.5 sm:py-3 px-2 sm:px-2.5 md:px-3">
@@ -956,9 +972,10 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                                           onDeleteUser(user.id);
                                           setDeleteUserId(null);
                                         }}
-                                        className="px-2 py-0.5 bg-red-600 text-white rounded-[4px] text-[10px] font-bold hover:bg-red-700 active:scale-95 transition-all"
+                                        className="px-2 py-0.5 bg-red-600 text-white rounded-[4px] text-[10px] font-bold hover:bg-red-700 active:scale-95 transition-all whitespace-nowrap shadow-xs"
+                                        title={userRecordCount > 0 ? `Delete user account and permanently purge ${userRecordCount} customer records from database and roster` : 'Delete user account'}
                                       >
-                                        Confirm
+                                        {userRecordCount > 0 ? `Purge (${userRecordCount} leads)` : 'Confirm'}
                                       </button>
                                       <button
                                         onClick={() => setDeleteUserId(null)}

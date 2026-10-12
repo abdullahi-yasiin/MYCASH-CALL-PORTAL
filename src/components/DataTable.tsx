@@ -23,6 +23,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import { CustomerRecord, CallStatus, User, isRecordAssignedBySupervisor } from '../types';
+import { safeStorage } from '../utils/safeStorage';
 
 export type ColumnKey = 
   | 'select' 
@@ -97,7 +98,7 @@ export const DataTable: React.FC<DataTableProps> = ({
   // Column width state with persistence
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(() => {
     try {
-      const saved = localStorage.getItem('mycash_col_widths_v2');
+      const saved = safeStorage.getItem('mycash_col_widths_v2');
       if (saved) {
         return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(saved) };
       }
@@ -111,11 +112,11 @@ export const DataTable: React.FC<DataTableProps> = ({
 
   // Table Font choice state with persistence (Default: IBM Plex Sans)
   const [tableFont, setTableFont] = useState<'ibm' | 'jakarta' | 'mono'>(() => {
-    return (localStorage.getItem('mycash_table_font') as any) || 'ibm';
+    return (safeStorage.getItem('mycash_table_font') as any) || 'ibm';
   });
 
   useEffect(() => {
-    localStorage.setItem('mycash_table_font', tableFont);
+    safeStorage.setItem('mycash_table_font', tableFont);
   }, [tableFont]);
 
   // Notes Modal state
@@ -150,11 +151,7 @@ export const DataTable: React.FC<DataTableProps> = ({
 
       setColumnWidths(prev => {
         const updated = { ...prev, [colKey]: newWidth };
-        try {
-          localStorage.setItem('mycash_col_widths_v2', JSON.stringify(updated));
-        } catch {
-          // ignore
-        }
+        safeStorage.setItem('mycash_col_widths_v2', JSON.stringify(updated));
         return updated;
       });
     };
@@ -190,11 +187,7 @@ export const DataTable: React.FC<DataTableProps> = ({
 
       setColumnWidths(prev => {
         const updated = { ...prev, [colKey]: newWidth };
-        try {
-          localStorage.setItem('mycash_col_widths_v2', JSON.stringify(updated));
-        } catch {
-          // ignore
-        }
+        safeStorage.setItem('mycash_col_widths_v2', JSON.stringify(updated));
         return updated;
       });
     };
@@ -211,11 +204,7 @@ export const DataTable: React.FC<DataTableProps> = ({
 
   const handleResetColumns = () => {
     setColumnWidths(DEFAULT_COLUMN_WIDTHS);
-    try {
-      localStorage.setItem('mycash_col_widths_v2', JSON.stringify(DEFAULT_COLUMN_WIDTHS));
-    } catch {
-      // ignore
-    }
+    safeStorage.setItem('mycash_col_widths_v2', JSON.stringify(DEFAULT_COLUMN_WIDTHS));
   };
 
   const getFontClass = () => {

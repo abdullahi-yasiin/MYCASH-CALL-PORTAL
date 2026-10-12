@@ -152,6 +152,11 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     });
   }, [supervisedAgents, records]);
 
+  // Active supervised Excels (agents with uploaded Excel containing records)
+  const activeSupervisedExcelsCount = useMemo(() => {
+    return agentSummaries.filter(s => s.totalLeads > 0).length;
+  }, [agentSummaries]);
+
   // Filtered agent summaries
   const filteredAgentSummaries = useMemo(() => {
     return agentSummaries.filter(s => {
@@ -243,7 +248,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             <span>{currentUser.name} - Team Performance Summary</span>
           </h2>
           <p className="text-[8.5px] sm:text-xs text-slate-300 max-w-2xl mt-0.5 sm:mt-1 leading-normal sm:leading-relaxed">
-            Auto-summarising real-time calling analytics aggregated from the customer Excels of <strong>{supervisedAgents.length} team members created under your supervision</strong>.
+            Auto-summarising real-time calling analytics aggregated from the customer Excels of <strong>{activeSupervisedExcelsCount} active team member Excels</strong> ({supervisedAgents.length} supervised agents).
           </p>
         </div>
 
@@ -429,7 +434,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             {totalTeamLeads}
           </div>
           <div className="text-[7px] sm:text-[10px] text-slate-500 truncate mt-0.5 sm:mt-1">
-            {supervisedAgents.length} Agents Supervised
+            {activeSupervisedExcelsCount} Active Excel{activeSupervisedExcelsCount === 1 ? '' : 's'} ({supervisedAgents.length} Supervised)
           </div>
         </div>
 

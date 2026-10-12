@@ -15,6 +15,7 @@ import {
   Check
 } from 'lucide-react';
 import { User } from '../types';
+import { safeStorage } from '../utils/safeStorage';
 
 interface EmailConfigurationModalProps {
   isOpen: boolean;
@@ -40,7 +41,7 @@ export const EmailConfigurationModal: React.FC<EmailConfigurationModalProps> = (
   onShowToast
 }) => {
   const [config, setConfig] = useState<MailgunConfig>(() => {
-    const saved = localStorage.getItem('mycash_v3_mailgun_config');
+    const saved = safeStorage.getItem('mycash_v3_mailgun_config');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -74,7 +75,7 @@ export const EmailConfigurationModal: React.FC<EmailConfigurationModalProps> = (
   if (!isOpen) return null;
 
   const handleSaveConfig = () => {
-    localStorage.setItem('mycash_v3_mailgun_config', JSON.stringify(config));
+    safeStorage.setItem('mycash_v3_mailgun_config', JSON.stringify(config));
     onShowToast('Mailgun credentials saved successfully.');
   };
 

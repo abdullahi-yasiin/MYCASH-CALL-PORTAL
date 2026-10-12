@@ -67,6 +67,7 @@ import { SetTargetModal } from './components/SetTargetModal';
 import { SessionInactivityModal } from './components/SessionInactivityModal';
 import { AiIntelligenceModal } from './components/AiIntelligenceModal';
 import { supabase, supabaseDb, fromDBCustomerRecord } from './lib/supabase';
+import { safeStorage, saveRecordsToIDB, getRecordsFromIDB } from './utils/safeStorage';
 
 // 30 Minutes Inactivity Session Rules
 // Close/End session only IF the session is not active for 30 minutes
@@ -83,10 +84,46 @@ const INITIAL_FILTERS: FilterState = {
   searchQuery: ''
 };
 
+// Purge and isolate customer records that do not belong to any valid agent user
+export function sanitizeRecordsWithAgentUsers(
+  recordsList: CustomerRecord[], 
+  userList: User[]
+): { valid: CustomerRecord[]; orphaned: CustomerRecord[] } {
+  // Purge any deleted test records and test appointments whose excel record was deleted
+  const cleanList = recordsList.filter(r => 
+    r.id !== 'rec-imp-1791793349671-127' && 
+    !(r.customerName && (r.customerName.toLowerCase().includes('test') || r.customerName.toLowerCase().includes('test appointment'))) &&
+    !(r.feedbackNote && (r.feedbackNote.toLowerCase().includes('test') || r.feedbackNote.toLowerCase().includes('test appointment'))) &&
+    !(r.appointment && (r.appointment.toLowerCase().includes('test') || r.appointment.toLowerCase().includes('test appointment'))) &&
+    !(r.customerName === '' && r.appointment)
+  );
+
+  const agentUsers = userList.filter(u => u.role === 'TEAM_MEMBER');
+  const effectiveAgents = agentUsers.length > 0 ? agentUsers : userList;
+  const validAgentIds = new Set(effectiveAgents.map(u => u.id));
+  const validAgentNames = new Set(effectiveAgents.map(u => u.name.trim().toLowerCase()));
+
+  const valid: CustomerRecord[] = [];
+  const orphaned: CustomerRecord[] = [];
+
+  for (const r of cleanList) {
+    const hasValidId = Boolean(r.assignedAgentId && r.assignedAgentId.trim() !== '' && r.assignedAgentId.toLowerCase() !== 'unassigned' && validAgentIds.has(r.assignedAgentId));
+    const hasValidName = Boolean(r.assignedAgentName && r.assignedAgentName.trim() !== '' && r.assignedAgentName.trim().toLowerCase() !== 'unassigned' && validAgentNames.has(r.assignedAgentName.trim().toLowerCase()));
+
+    if (hasValidId || hasValidName) {
+      valid.push(r);
+    } else {
+      orphaned.push(r);
+    }
+  }
+
+  return { valid, orphaned };
+}
+
 export default function App() {
   // Persistent state
   const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('mycash_v3_users');
+    const saved = safeStorage.getItem('mycash_v3_users');
     if (saved) {
       try {
         const parsed: User[] = JSON.parse(saved);
@@ -99,7 +136,7 @@ export default function App() {
   });
 
   const [branches, setBranches] = useState<BranchInfo[]>(() => {
-    const saved = localStorage.getItem('mycash_v3_branches');
+    const saved = safeStorage.getItem('mycash_v3_branches');
     if (saved) {
       try {
         const parsed: BranchInfo[] = JSON.parse(saved);
@@ -111,7 +148,7 @@ export default function App() {
           );
           if (missing.length > 0) {
             const merged = [...parsed, ...missing];
-            localStorage.setItem('mycash_v3_branches', JSON.stringify(merged));
+            safeStorage.setItem('mycash_v3_branches', JSON.stringify(merged));
             return merged;
           }
           return parsed;
@@ -124,12 +161,22 @@ export default function App() {
   });
 
   const [records, setRecords] = useState<CustomerRecord[]>(() => {
-    const saved = localStorage.getItem('mycash_v3_records');
+    const saved = safeStorage.getItem('mycash_v3_records');
+    const savedUsers = safeStorage.getItem('mycash_v3_users');
+    let loadedUsers: User[] = INITIAL_USERS;
+    if (savedUsers) {
+      try {
+        const parsed = JSON.parse(savedUsers);
+        if (Array.isArray(parsed) && parsed.length > 0) loadedUsers = parsed;
+      } catch (e) {}
+    }
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(fromDBCustomerRecord);
+          const raw = parsed.map(fromDBCustomerRecord);
+          const { valid } = sanitizeRecordsWithAgentUsers(raw, loadedUsers);
+          return valid;
         }
       } catch (e) {
         // Fallback
@@ -139,7 +186,7 @@ export default function App() {
   });
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => {
-    const saved = localStorage.getItem('mycash_v3_logs');
+    const saved = safeStorage.getItem('mycash_v3_logs');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -152,24 +199,24 @@ export default function App() {
 
   // Dynamic RBAC Role Definitions & Permission Matrix
   const [roleDefinitions, setRoleDefinitions] = useState<RoleDefinition[]>(() => {
-    const saved = localStorage.getItem('mycash_v2_roles');
+    const saved = safeStorage.getItem('mycash_v2_roles');
     return saved ? JSON.parse(saved) : INITIAL_ROLE_DEFINITIONS;
   });
 
   // Current logged in user (null if not authenticated yet)
   // Close/End session only IF the session is not active for 30 minutes
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const savedUser = localStorage.getItem('mycash_v3_current_user');
-    const lastActive = localStorage.getItem('mycash_v3_last_activity');
+    const savedUser = safeStorage.getItem('mycash_v3_current_user');
+    const lastActive = safeStorage.getItem('mycash_v3_last_activity');
     if (savedUser) {
       if (lastActive) {
         const elapsed = Date.now() - parseInt(lastActive, 10);
         if (elapsed >= SESSION_INACTIVITY_LIMIT_MS) {
           // Session expired due to 30 minutes of inactivity
           console.warn('[Session Security] Session closed upon load: Inactive for 30+ minutes.');
-          localStorage.removeItem('mycash_v3_current_user');
-          localStorage.removeItem('mycash_v3_last_activity');
-          localStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
+          safeStorage.removeItem('mycash_v3_current_user');
+          safeStorage.removeItem('mycash_v3_last_activity');
+          safeStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
           return null;
         }
       }
@@ -185,8 +232,8 @@ export default function App() {
   // Full-page Login View vs Dashboard Workspace View
   // Default to true (Login screen) unless a valid logged-in session exists and is active within 30 minutes
   const [isAuthView, setIsAuthView] = useState<boolean>(() => {
-    const savedUser = localStorage.getItem('mycash_v3_current_user');
-    const lastActive = localStorage.getItem('mycash_v3_last_activity');
+    const savedUser = safeStorage.getItem('mycash_v3_current_user');
+    const lastActive = safeStorage.getItem('mycash_v3_last_activity');
     if (!savedUser) return true;
     if (lastActive) {
       const elapsed = Date.now() - parseInt(lastActive, 10);
@@ -194,13 +241,13 @@ export default function App() {
         return true;
       }
     }
-    const savedAuth = localStorage.getItem('mycash_v3_is_auth_view');
+    const savedAuth = safeStorage.getItem('mycash_v3_is_auth_view');
     return savedAuth ? JSON.parse(savedAuth) : false;
   });
 
   // Session 30-Minute Inactivity Auto-Close State
   const [inactivityNotice, setInactivityNotice] = useState<string | null>(() => {
-    const lastActive = localStorage.getItem('mycash_v3_last_activity');
+    const lastActive = safeStorage.getItem('mycash_v3_last_activity');
     if (lastActive) {
       const elapsed = Date.now() - parseInt(lastActive, 10);
       if (elapsed >= SESSION_INACTIVITY_LIMIT_MS) {
@@ -264,9 +311,9 @@ export default function App() {
     setIsSessionWarningOpen(false);
     setIsAuthView(true);
     setCurrentUser(null);
-    localStorage.removeItem('mycash_v3_current_user');
-    localStorage.removeItem('mycash_v3_last_activity');
-    localStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
+    safeStorage.removeItem('mycash_v3_current_user');
+    safeStorage.removeItem('mycash_v3_last_activity');
+    safeStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
     setInactivityNotice('Your session has ended because the terminal was inactive for 30 minutes. Please sign in again.');
     showToast('Session ended: 30 minutes of inactivity reached.', 'error');
   }, []);
@@ -285,7 +332,7 @@ export default function App() {
     // Throttle writes to localStorage to prevent unnecessary disk I/O (every 4 seconds)
     if (forceStorageUpdate || now - lastStoredWriteRef.current >= 4000) {
       lastStoredWriteRef.current = now;
-      localStorage.setItem('mycash_v3_last_activity', now.toString());
+      safeStorage.setItem('mycash_v3_last_activity', now.toString());
     }
   }, []);
 
@@ -297,10 +344,10 @@ export default function App() {
     }
 
     // Initialize or verify last active timestamp
-    const existingLastActive = localStorage.getItem('mycash_v3_last_activity');
+    const existingLastActive = safeStorage.getItem('mycash_v3_last_activity');
     if (!existingLastActive) {
       const now = Date.now();
-      localStorage.setItem('mycash_v3_last_activity', now.toString());
+      safeStorage.setItem('mycash_v3_last_activity', now.toString());
       lastActivityRef.current = now;
     } else {
       const parsed = parseInt(existingLastActive, 10);
@@ -340,7 +387,7 @@ export default function App() {
     // Periodic timer checking if 30 minutes of inactivity has elapsed
     const timerInterval = setInterval(() => {
       const now = Date.now();
-      const storedLast = localStorage.getItem('mycash_v3_last_activity');
+      const storedLast = safeStorage.getItem('mycash_v3_last_activity');
       const lastActive = storedLast ? parseInt(storedLast, 10) : lastActivityRef.current;
       const elapsed = now - lastActive;
 
@@ -361,7 +408,7 @@ export default function App() {
     // Check immediately on tab focus or computer wake
     const handleVisibilityOrFocus = () => {
       const now = Date.now();
-      const storedLast = localStorage.getItem('mycash_v3_last_activity');
+      const storedLast = safeStorage.getItem('mycash_v3_last_activity');
       const lastActive = storedLast ? parseInt(storedLast, 10) : lastActivityRef.current;
       const elapsed = now - lastActive;
 
@@ -393,40 +440,8 @@ export default function App() {
         console.log('[Supabase Sync: Start] Testing connection to Supabase database...');
         const conn = await supabaseDb.testConnection();
 
-        if (conn.tables.customerRecords) {
-          // Fetch existing customers from remote DB to ensure persistence
-          const remoteCustomers = await supabaseDb.fetchCustomers();
-          if (remoteCustomers !== null) {
-            setRecords(remoteCustomers);
-            localStorage.setItem('mycash_v3_records', JSON.stringify(remoteCustomers));
-          }
-        }
-
-        if (conn.tables.activityLogs) {
-          // Sync activity logs
-          const remoteLogs = await supabaseDb.fetchActivityLogs();
-          if (remoteLogs && remoteLogs.length > 0) {
-            setActivityLogs(remoteLogs);
-          } else {
-            // Push local logs to cloud
-            const savedLocalLogs = localStorage.getItem('mycash_v3_logs');
-            if (savedLocalLogs) {
-              try {
-                const parsedLocalLogs = JSON.parse(savedLocalLogs);
-                if (parsedLocalLogs && parsedLocalLogs.length > 0) {
-                  for (const log of parsedLocalLogs) {
-                    await supabaseDb.insertActivityLog(log);
-                  }
-                  setActivityLogs(parsedLocalLogs);
-                }
-              } catch (e) {
-                console.warn('[Supabase Sync: Warning] Local logs push error:', e);
-              }
-            }
-          }
-        }
-
         // Synchronize Users with robust error handling and tracking logs
+        let activeUsers: User[] = users;
         if (conn.tables.users) {
           console.group('[Supabase Users Sync: Execution]');
           console.log('[Supabase Users Sync: Status] Users table is accessible.');
@@ -458,6 +473,7 @@ export default function App() {
                   console.log('[Supabase Users Sync: Step 3 Success] Default HQ Admin provisioned in database.');
                   const updatedUsers = await supabaseDb.fetchUsers() || [defaultAdmin];
                   setUsers(updatedUsers);
+                  activeUsers = updatedUsers;
                   const freshAdmin = updatedUsers.find(u => u.id === 'u-admin-1') || defaultAdmin;
                   setCurrentUser(prev => prev && prev.id === 'u-admin-1' ? freshAdmin : prev);
                 } else {
@@ -466,6 +482,7 @@ export default function App() {
               } else {
                 console.log('[Supabase Users Sync: Step 3 Verified] HQ Admin account verified in cloud database. Updating UI state.');
                 setUsers(remoteUsers);
+                activeUsers = remoteUsers;
                 const syncedAdmin = existingAdmin;
                 setCurrentUser(prev => {
                   if (!prev) return null;
@@ -473,7 +490,7 @@ export default function App() {
                   const stillExists = remoteUsers.find(u => u.id === prev.id);
                   if (!stillExists) {
                     console.warn(`[Supabase Users Sync: Session Terminated] User ID "${prev.id}" was not found in remote database. Clearing stale local session.`);
-                    localStorage.removeItem('mycash_v3_current_user');
+                    safeStorage.removeItem('mycash_v3_current_user');
                     return null;
                   }
                   return stillExists;
@@ -486,6 +503,63 @@ export default function App() {
           console.groupEnd();
         } else {
           console.warn('[Supabase Users Sync: Warning] Users table unreachable or not provisioned in Supabase.');
+        }
+
+        // Database Integrity Check: Automatically purge any customer records with no Agent user in cloud database
+        if (conn.tables.customerRecords && activeUsers.length > 0) {
+          try {
+            console.log('[Supabase Database Integrity] Scanning for customer records with no Agent user...');
+            const purgeRes = await supabaseDb.purgeOrphanedCustomerRecords(activeUsers);
+            if (purgeRes.deletedCount > 0) {
+              console.log(`[Supabase Database Integrity] Successfully purged ${purgeRes.deletedCount} orphaned records with no Agent user from Supabase.`);
+            }
+          } catch (purgeErr) {
+            console.warn('[Supabase Database Integrity notice]', purgeErr);
+          }
+        }
+
+        if (conn.tables.customerRecords) {
+          // Fetch existing customers from remote DB to ensure persistence
+          const remoteCustomers = await supabaseDb.fetchCustomers();
+          if (remoteCustomers !== null) {
+            // Strictly sanitize against active users: Only available customer records for valid Agent users are kept
+            const { valid, orphaned } = sanitizeRecordsWithAgentUsers(remoteCustomers, activeUsers);
+            setRecords(valid);
+            saveRecordsToIDB(valid);
+            if (valid.length <= 250) {
+              safeStorage.setItem('mycash_v3_records', JSON.stringify(valid));
+            } else {
+              safeStorage.removeItem('mycash_v3_records');
+            }
+            if (orphaned.length > 0) {
+              console.warn(`[Supabase Customer Sync] Found ${orphaned.length} orphaned customer records with no valid agent. Purging from Supabase...`);
+              await supabaseDb.deleteCustomers(orphaned.map(r => r.id));
+            }
+          }
+        }
+
+        if (conn.tables.activityLogs) {
+          // Sync activity logs
+          const remoteLogs = await supabaseDb.fetchActivityLogs();
+          if (remoteLogs && remoteLogs.length > 0) {
+            setActivityLogs(remoteLogs);
+          } else {
+            // Push local logs to cloud
+            const savedLocalLogs = safeStorage.getItem('mycash_v3_logs');
+            if (savedLocalLogs) {
+              try {
+                const parsedLocalLogs = JSON.parse(savedLocalLogs);
+                if (parsedLocalLogs && parsedLocalLogs.length > 0) {
+                  for (const log of parsedLocalLogs) {
+                    await supabaseDb.insertActivityLog(log);
+                  }
+                  setActivityLogs(parsedLocalLogs);
+                }
+              } catch (e) {
+                console.warn('[Supabase Sync: Warning] Local logs push error:', e);
+              }
+            }
+          }
         }
       } catch (e) {
         console.warn('[Supabase Sync: Warning] Automated cloud sync notice:', e);
@@ -505,8 +579,23 @@ export default function App() {
             console.log('[Supabase Realtime: Event] customer_records modified in backend. Refreshing...');
             const remoteCustomers = await supabaseDb.fetchCustomers();
             if (remoteCustomers !== null) {
-              setRecords(remoteCustomers);
-              localStorage.setItem('mycash_v3_records', JSON.stringify(remoteCustomers));
+              // Get current users from state/safeStorage to sanitize
+              const savedUsersStr = safeStorage.getItem('mycash_v3_users');
+              let currentUsersList = users;
+              if (savedUsersStr) {
+                try {
+                  const parsed = JSON.parse(savedUsersStr);
+                  if (Array.isArray(parsed) && parsed.length > 0) currentUsersList = parsed;
+                } catch (e) {}
+              }
+              const { valid } = sanitizeRecordsWithAgentUsers(remoteCustomers, currentUsersList);
+              setRecords(valid);
+              saveRecordsToIDB(valid);
+              if (valid.length <= 250) {
+                safeStorage.setItem('mycash_v3_records', JSON.stringify(valid));
+              } else {
+                safeStorage.removeItem('mycash_v3_records');
+              }
             }
           } catch (e) {
             console.warn('[Supabase Realtime: Notice] Error refreshing records:', e);
@@ -520,33 +609,57 @@ export default function App() {
     };
   }, []);
 
-  // Synchronize storage
+  // Hydrate records from IndexedDB if localStorage was empty or cleared
   useEffect(() => {
-    localStorage.setItem('mycash_v3_users', JSON.stringify(users));
+    if (records.length === 0) {
+      getRecordsFromIDB().then(cachedRecords => {
+        if (cachedRecords && cachedRecords.length > 0) {
+          setRecords(prev => {
+            if (prev.length === 0) {
+              const { valid } = sanitizeRecordsWithAgentUsers(cachedRecords, users);
+              return valid;
+            }
+            return prev;
+          });
+        }
+      });
+    }
+  }, []);
+
+  // Synchronize storage safely with QuotaExceeded resilience
+  useEffect(() => {
+    safeStorage.setItem('mycash_v3_users', JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('mycash_v3_current_user', JSON.stringify(currentUser));
+      safeStorage.setItem('mycash_v3_current_user', JSON.stringify(currentUser));
     } else {
-      localStorage.removeItem('mycash_v3_current_user');
+      safeStorage.removeItem('mycash_v3_current_user');
     }
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(isAuthView));
+    safeStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(isAuthView));
   }, [isAuthView]);
 
   useEffect(() => {
-    localStorage.setItem('mycash_v3_records', JSON.stringify(records));
+    saveRecordsToIDB(records);
+    if (records.length <= 250) {
+      safeStorage.setItem('mycash_v3_records', JSON.stringify(records));
+    } else {
+      // Free localStorage quota while full dataset remains persistent in IndexedDB & Supabase
+      safeStorage.removeItem('mycash_v3_records');
+    }
   }, [records]);
 
   useEffect(() => {
-    localStorage.setItem('mycash_v3_logs', JSON.stringify(activityLogs));
+    // Retain up to 100 recent logs in local storage cache to protect quota
+    safeStorage.setItem('mycash_v3_logs', JSON.stringify(activityLogs.slice(0, 100)));
   }, [activityLogs]);
 
   useEffect(() => {
-    localStorage.setItem('mycash_v2_roles', JSON.stringify(roleDefinitions));
+    safeStorage.setItem('mycash_v2_roles', JSON.stringify(roleDefinitions));
   }, [roleDefinitions]);
 
   // Filtered customer records based on role and active filters
@@ -685,14 +798,14 @@ export default function App() {
 
       console.log(`[User Creation: Step 3] Database transaction confirmed successful.`);
 
-      // Step 4: Update UI state and localStorage ONLY after successful DB transaction
+      // Step 4: Update UI state and safeStorage ONLY after successful DB transaction
       console.log(`[User Creation: Step 4] Updating React application state and local cache...`);
       setUsers(prev => {
         const exists = prev.some(u => u.id === newUser.id);
         const updated = exists
           ? prev.map(u => u.id === newUser.id ? newUser : u)
           : [...prev, newUser];
-        localStorage.setItem('mycash_v3_users', JSON.stringify(updated));
+        safeStorage.setItem('mycash_v3_users', JSON.stringify(updated));
         return updated;
       });
 
@@ -744,7 +857,7 @@ export default function App() {
           userMap.set(u.id, u);
         });
         const updated = Array.from(userMap.values());
-        localStorage.setItem('mycash_v3_users', JSON.stringify(updated));
+        safeStorage.setItem('mycash_v3_users', JSON.stringify(updated));
         return updated;
       });
 
@@ -794,12 +907,12 @@ export default function App() {
       console.log(`[User Update: Step 3] Database transaction confirmed. Updating UI state...`);
       setUsers(prev => {
         const updated = prev.map(u => (u.id === updatedUser.id ? updatedUser : u));
-        localStorage.setItem('mycash_v3_users', JSON.stringify(updated));
+        safeStorage.setItem('mycash_v3_users', JSON.stringify(updated));
         return updated;
       });
       if (currentUser && currentUser.id === updatedUser.id) {
         setCurrentUser(updatedUser);
-        localStorage.setItem('mycash_v3_current_user', JSON.stringify(updatedUser));
+        safeStorage.setItem('mycash_v3_current_user', JSON.stringify(updatedUser));
       }
       showToast(`Updated user: ${updatedUser.name}`);
       console.log(`[User Update: Complete] User ${updatedUser.name} updated.`);
@@ -822,10 +935,10 @@ export default function App() {
       mustChangePassword: false 
     };
     setCurrentUser(updatedUser);
-    localStorage.setItem('mycash_v3_current_user', JSON.stringify(updatedUser));
+    safeStorage.setItem('mycash_v3_current_user', JSON.stringify(updatedUser));
     setUsers(prev => {
       const updated = prev.map(u => u.id === currentUser.id ? updatedUser : u);
-      localStorage.setItem('mycash_v3_users', JSON.stringify(updated));
+      safeStorage.setItem('mycash_v3_users', JSON.stringify(updated));
       return updated;
     });
     await supabaseDb.upsertUser(updatedUser);
@@ -833,21 +946,92 @@ export default function App() {
     showToast('Your security password has been updated and encrypted in cloud.');
   };
 
-  // Delete user account with database confirmation
+  // Delete user account and cascade delete all associated customer records from database & frontend
   const handleDeleteUser = async (userId: string) => {
-    console.log(`[User Deletion] Initiating deletion for user: ${userId}`);
-    const success = await supabaseDb.deleteUser(userId);
+    const targetUser = users.find(u => u.id === userId);
+    const targetName = targetUser?.name;
+    console.group(`[HQ Admin User Deletion] User: ${userId} (${targetName || 'Unknown'})`);
+
+    // 1. Identify all customer records associated with this user
+    const recordsToDelete = records.filter(r => 
+      r.assignedAgentId === userId || 
+      (targetName && r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === targetName.trim().toLowerCase()) ||
+      (targetUser?.role === 'SUPERVISOR' && r.supervisorId === userId)
+    );
+    const recordIdsToDelete = recordsToDelete.map(r => r.id);
+    console.log(`[User Deletion] Found ${recordIdsToDelete.length} customer records belonging to "${targetName || userId}" to purge.`);
+
+    // 2. Delete customer records from Supabase backend database
+    if (recordIdsToDelete.length > 0) {
+      console.log(`[User Deletion] Purging customer records by IDs from Supabase...`);
+      await supabaseDb.deleteCustomers(recordIdsToDelete);
+    }
+    if (userId || targetName) {
+      console.log(`[User Deletion] Purging customer records by agent ID/name from Supabase...`);
+      await supabaseDb.deleteCustomersByAgent(userId, targetName);
+    }
+
+    // 3. Delete user from Supabase backend database
+    console.log(`[User Deletion] Purging user account from Supabase...`);
+    const success = await supabaseDb.deleteUser(userId, targetName);
     if (!success) {
       console.error(`[User Deletion: FAILED] Database could not delete user ${userId}.`);
       showToast('Failed to delete user account from cloud database.', 'error');
+      console.groupEnd();
       return;
     }
+
+    // 4. Update Frontend State: Purge customer records from React state & safeStorage
+    if (recordIdsToDelete.length > 0) {
+      const idSet = new Set(recordIdsToDelete);
+      setRecords(prev => {
+        const remaining = prev.filter(r => 
+          !idSet.has(r.id) &&
+          r.assignedAgentId !== userId &&
+          !(targetName && r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === targetName.trim().toLowerCase()) &&
+          !(targetUser?.role === 'SUPERVISOR' && r.supervisorId === userId)
+        );
+        saveRecordsToIDB(remaining);
+        if (remaining.length <= 250) {
+          safeStorage.setItem('mycash_v3_records', JSON.stringify(remaining));
+        } else {
+          safeStorage.removeItem('mycash_v3_records');
+        }
+        return remaining;
+      });
+    }
+
+    // 5. Update Frontend State: Remove user from React state & safeStorage
     setUsers(prev => {
       const filtered = prev.filter(u => u.id !== userId);
-      localStorage.setItem('mycash_v3_users', JSON.stringify(filtered));
+      safeStorage.setItem('mycash_v3_users', JSON.stringify(filtered));
       return filtered;
     });
-    showToast('User account permanently deleted from portal & cloud database.');
+
+    // 6. Generate detailed audit activity log
+    const deletionLog: ActivityLog = {
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      userId: currentUser?.id || 'system',
+      userName: currentUser?.name || 'HQ Admin',
+      userRole: currentUser?.role || 'HQ_ADMIN',
+      recordId: userId,
+      customerName: targetName || 'User Account',
+      action: 'STATUS_CHANGE',
+      details: recordIdsToDelete.length > 0
+        ? `HQ Admin permanently deleted ${targetUser?.role || 'user'} account "${targetName}" and purged all ${recordIdsToDelete.length} associated customer records from database and roster.`
+        : `HQ Admin permanently deleted ${targetUser?.role || 'user'} account "${targetName}" from system.`
+    };
+    setActivityLogs(prev => [deletionLog, ...prev]);
+    supabaseDb.insertActivityLog(deletionLog);
+
+    // 7. Toast confirmation
+    if (recordIdsToDelete.length > 0) {
+      showToast(`User "${targetName}" and ${recordIdsToDelete.length} customer records were permanently deleted from cloud database & portal.`);
+    } else {
+      showToast(`User account "${targetName || userId}" permanently deleted from portal & cloud database.`);
+    }
+    console.groupEnd();
   };
 
   // Update role permissions matrix
@@ -870,7 +1054,7 @@ export default function App() {
     }
     setUsers(prev => {
       const updated = prev.map(u => (u.id === userId ? toggledUser : u));
-      localStorage.setItem('mycash_v3_users', JSON.stringify(updated));
+      safeStorage.setItem('mycash_v3_users', JSON.stringify(updated));
       return updated;
     });
     showToast(`Updated user status for ${targetUser.name}.`);
@@ -916,7 +1100,7 @@ export default function App() {
     const updatedUser: User = { ...agent, weeklyTarget, monthlyTarget };
     setUsers(prev => {
       const updated = prev.map(u => u.id === agentId ? updatedUser : u);
-      localStorage.setItem('mycash_v3_users', JSON.stringify(updated));
+      safeStorage.setItem('mycash_v3_users', JSON.stringify(updated));
       return updated;
     });
 
@@ -937,7 +1121,7 @@ export default function App() {
     };
     setActivityLogs(prev => {
       const updated = [newLog, ...prev];
-      localStorage.setItem('mycash_v3_logs', JSON.stringify(updated));
+      safeStorage.setItem('mycash_v3_logs', JSON.stringify(updated.slice(0, 100)));
       return updated;
     });
 
@@ -967,7 +1151,7 @@ export default function App() {
         targetCallsWeek: totalWeekly,
         targetCallsMonth: totalMonthly
       } : b);
-      localStorage.setItem('mycash_v3_branches', JSON.stringify(updated));
+      safeStorage.setItem('mycash_v3_branches', JSON.stringify(updated));
       return updated;
     });
 
@@ -985,7 +1169,7 @@ export default function App() {
     };
     setActivityLogs(prev => {
       const updated = [newLog, ...prev];
-      localStorage.setItem('mycash_v3_logs', JSON.stringify(updated));
+      safeStorage.setItem('mycash_v3_logs', JSON.stringify(updated.slice(0, 100)));
       return updated;
     });
 
@@ -1025,8 +1209,15 @@ export default function App() {
         targetIds = records.map(r => r.id);
       } else if (target.type === 'agent' && target.id) {
         const agent = users.find(u => u.id === target.id);
+        const agentNameClean = agent?.name?.trim().toLowerCase();
         targetIds = records
-          .filter(r => r.assignedAgentId === target.id || (agent && r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase()))
+          .filter(r => 
+            r.assignedAgentId === target.id || 
+            (agentNameClean && r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === agentNameClean) ||
+            r.reassignedFromAgentId === target.id ||
+            (agentNameClean && r.reassignedFromAgentName && r.reassignedFromAgentName.trim().toLowerCase() === agentNameClean) ||
+            (target.id && r.supervisorNote && r.supervisorNote.includes(target.id))
+          )
           .map(r => r.id);
       } else if (target.type === 'batch' && target.id) {
         targetIds = records
@@ -1066,13 +1257,18 @@ export default function App() {
 
       console.log(`[Delete Excel: Step 4] Supabase backend deletion confirmed.`);
 
-      // Step 5: Update React state & localStorage
+      // Step 5: Update React state & safeStorage with IndexedDB persistence
       const idSet = new Set(targetIds);
       setRecords(prev => {
         const filtered = target.type === 'all' 
           ? [] 
           : prev.filter(r => !idSet.has(r.id));
-        localStorage.setItem('mycash_v3_records', JSON.stringify(filtered));
+        saveRecordsToIDB(filtered);
+        if (filtered.length <= 250) {
+          safeStorage.setItem('mycash_v3_records', JSON.stringify(filtered));
+        } else {
+          safeStorage.removeItem('mycash_v3_records');
+        }
         return filtered;
       });
 
@@ -1145,9 +1341,9 @@ export default function App() {
         inactivityNotice={inactivityNotice}
         onLoginSuccess={(loggedInUser) => {
           const now = Date.now();
-          localStorage.setItem('mycash_v3_last_activity', now.toString());
-          localStorage.setItem('mycash_v3_current_user', JSON.stringify(loggedInUser));
-          localStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(false));
+          safeStorage.setItem('mycash_v3_last_activity', now.toString());
+          safeStorage.setItem('mycash_v3_current_user', JSON.stringify(loggedInUser));
+          safeStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(false));
           setInactivityNotice(null);
           setIsSessionWarningOpen(false);
           lastActivityRef.current = now;
@@ -1184,9 +1380,9 @@ export default function App() {
           setIsSessionWarningOpen(false);
           setIsAuthView(true);
           setCurrentUser(null);
-          localStorage.removeItem('mycash_v3_current_user');
-          localStorage.removeItem('mycash_v3_last_activity');
-          localStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
+          safeStorage.removeItem('mycash_v3_current_user');
+          safeStorage.removeItem('mycash_v3_last_activity');
+          safeStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
           setInactivityNotice(null);
           showToast('Signed out of active terminal.');
         }}
@@ -1198,9 +1394,9 @@ export default function App() {
           setIsSessionWarningOpen(false);
           setIsAuthView(true);
           setCurrentUser(null);
-          localStorage.removeItem('mycash_v3_current_user');
-          localStorage.removeItem('mycash_v3_last_activity');
-          localStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
+          safeStorage.removeItem('mycash_v3_current_user');
+          safeStorage.removeItem('mycash_v3_last_activity');
+          safeStorage.setItem('mycash_v3_is_auth_view', JSON.stringify(true));
           setInactivityNotice(null);
         }}
         onRefreshData={() => {
@@ -1558,6 +1754,7 @@ export default function App() {
         allUsers={users}
         branches={branches}
         roleDefinitions={roleDefinitions}
+        records={records}
         initialTab={userManagementTab}
         initialShowAddForm={userManagementShowAddForm}
         onAddUser={handleAddUser}

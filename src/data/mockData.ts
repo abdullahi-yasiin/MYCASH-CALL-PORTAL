@@ -1,6 +1,7 @@
 import { User, BranchInfo, CustomerRecord, ActivityLog } from '../types';
 
 export const INITIAL_BRANCHES: BranchInfo[] = [
+  { id: 'b-hq', name: 'HQ Branch', region: 'Headquarters', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 2000 },
   { id: 'b-glk-n', name: 'Galkacyo North Branch', region: 'Mudug', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 800 },
   { id: 'b-glk-s', name: 'Galkacyo South Branch', region: 'Mudug', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 750 },
   { id: 'b-brt', name: 'Burtinle Branch', region: 'Nugaal', supervisorId: '', supervisorName: 'Unassigned', targetCallsMonth: 600 },

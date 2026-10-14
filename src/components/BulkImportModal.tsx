@@ -166,7 +166,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
                         Boolean(row.feedbackNote && row.feedbackNote.trim().length > 0);
 
       return {
-        id: `rec-imp-${Date.now()}-${idx}`,
+        id: `rec-imp-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
         customerName: row.customerName,
         phoneNumber: row.phoneNumber,
         areaOfReg: currentUser.role === 'SUPERVISOR' ? currentUser.branch : row.areaOfReg,
@@ -182,7 +182,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
         callCount: hasStatus ? 1 : 0,
         importedBatchId: batchId,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: hasStatus ? new Date().toISOString() : ''
       };
     });
 

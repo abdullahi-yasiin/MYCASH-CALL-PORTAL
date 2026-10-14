@@ -17,7 +17,8 @@ import {
   XCircle,
   AlertCircle,
   Trash2,
-  UserCheck
+  UserCheck,
+  ArrowUpDown
 } from 'lucide-react';
 import { User, CustomerRecord, CallStatus, DeleteExcelTarget, isRecordAssignedBySupervisor } from '../types';
 import { exportToExcel } from '../utils/exportEngine';
@@ -73,15 +74,31 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
     if (!agent) return [];
     const agNameClean = agent.name.toLowerCase().replace(/^agent\s+/i, '').trim();
     const agFirstName = agNameClean.split(' ')[0];
-    return records.filter(r => {
-      if (isRecordAssignedBySupervisor(r)) return false;
-      if (r.assignedAgentId === agent.id) return true;
-      if (!r.assignedAgentName) return false;
-      const rNameClean = r.assignedAgentName.toLowerCase().replace(/^agent\s+/i, '').trim();
-      if (rNameClean === agNameClean || r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase()) return true;
-      if (agFirstName.length >= 3 && (rNameClean === agFirstName || rNameClean.startsWith(agFirstName))) return true;
-      return false;
-    });
+    const seen = new Set<string>();
+    const list: CustomerRecord[] = [];
+
+    for (const r of records) {
+      if (!r || !r.id || seen.has(r.id)) continue;
+      if (isRecordAssignedBySupervisor(r)) continue;
+
+      let matched = false;
+      if (r.assignedAgentId === agent.id) {
+        matched = true;
+      } else if (r.assignedAgentName) {
+        const rNameClean = r.assignedAgentName.toLowerCase().replace(/^agent\s+/i, '').trim();
+        if (rNameClean === agNameClean || r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase()) {
+          matched = true;
+        } else if (agFirstName.length >= 3 && (rNameClean === agFirstName || rNameClean.startsWith(agFirstName))) {
+          matched = true;
+        }
+      }
+
+      if (matched) {
+        seen.add(r.id);
+        list.push(r);
+      }
+    }
+    return list;
   }, [records, agent]);
 
   // Available target agents for reassignment
@@ -89,17 +106,89 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
     return teamMembers.filter(m => m.id !== agent?.id && m.role === 'TEAM_MEMBER');
   }, [teamMembers, agent]);
 
-  // Applied local filter
+  // Helper to identify records called, scheduled, or status-changed
+  const isInteractedOrCalled = (r: CustomerRecord): boolean => {
+    if (!r) return false;
+    if (r.status && r.status !== 'Uncalled') return true;
+    if (r.appointment && r.appointment.trim() !== '') return true;
+    if (r.hasBeenCalled || (r.callCount && r.callCount > 0)) return true;
+    if (r.feedbackNote && r.feedbackNote.trim() !== '') return true;
+    if (r.supervisorNote && r.supervisorNote.trim() !== '' && !r.supervisorNote.startsWith('[SUP_ASSIGN:')) return true;
+    if (r.updatedAt && r.updatedAt.trim() !== '') {
+      if (!r.createdAt || r.createdAt.trim() === '') return true;
+      const updatedTime = new Date(r.updatedAt).getTime();
+      const createdTime = new Date(r.createdAt).getTime();
+      if (!isNaN(updatedTime) && !isNaN(createdTime)) {
+        if (updatedTime - createdTime > 5000) return true;
+      } else if (r.updatedAt !== r.createdAt) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Applied local filter & sorting:
+  // Strictly sort 'Called/Status-changed' customer records on TOP, never use alphabetic customerName order!
   const displayedRecords = useMemo(() => {
-    return agentRecords.filter(r => {
-      const matchStatus = selectedStatus === 'ALL' || r.status === selectedStatus;
-      const q = searchQuery.toLowerCase();
-      const matchQuery = !q || 
-        r.customerName.toLowerCase().includes(q) || 
-        r.phoneNumber.includes(q) ||
-        r.feedbackNote.toLowerCase().includes(q);
-      return matchStatus && matchQuery;
-    });
+    return agentRecords
+      .filter(r => {
+        const matchStatus = selectedStatus === 'ALL' || r.status === selectedStatus;
+        const q = searchQuery.toLowerCase();
+        const matchQuery = !q || 
+          r.customerName.toLowerCase().includes(q) || 
+          r.phoneNumber.includes(q) ||
+          r.feedbackNote.toLowerCase().includes(q);
+        return matchStatus && matchQuery;
+      })
+      .sort((a, b) => {
+        const aCalled = isInteractedOrCalled(a);
+        const bCalled = isInteractedOrCalled(b);
+
+        // RULE 1: Called / Status-changed / Appointment records ALWAYS on TOP!
+        if (aCalled !== bCalled) return aCalled ? -1 : 1;
+        
+        // RULE 2: When both are called/changed records, prioritize active appointments and newest agent activity:
+        if (aCalled && bCalled) {
+          // Scheduled appointments get top priority
+          const aHasAppt = Boolean(a.appointment && a.appointment.trim());
+          const bHasAppt = Boolean(b.appointment && b.appointment.trim());
+          if (aHasAppt !== bHasAppt) return aHasAppt ? -1 : 1;
+
+          // Priority by status outcome
+          const statusOrder: Record<string, number> = {
+            'Success': 1,
+            'In-progress': 2,
+            'Not Available': 3,
+            'Rejected': 4,
+            'Uncalled': 5
+          };
+          const aRank = statusOrder[a.status] || 99;
+          const bRank = statusOrder[b.status] || 99;
+          if (aRank !== bRank) return aRank - bRank;
+
+          // Priority to recent agent edits
+          const aUpdated = a.updatedAt || '';
+          const bUpdated = b.updatedAt || '';
+          if (aUpdated !== bUpdated) return bUpdated.localeCompare(aUpdated);
+
+          // Most recent call date
+          const aCall = a.callDate || '';
+          const bCall = b.callDate || '';
+          if (aCall !== bCall) return bCall.localeCompare(aCall);
+
+          // Follow-up appointment chronological sequence
+          const aAppt = (a.appointment || '').trim();
+          const bAppt = (b.appointment || '').trim();
+          if (aAppt !== bAppt) return aAppt.localeCompare(bAppt);
+        }
+
+        // RULE 3: For uncontacted leads below the line: preserve chronological/import order, DO NOT use alphabetic order!
+        const aCreated = a.createdAt || '';
+        const bCreated = b.createdAt || '';
+        if (aCreated !== bCreated) return bCreated.localeCompare(aCreated);
+
+        return a.id.localeCompare(b.id);
+      });
   }, [agentRecords, selectedStatus, searchQuery]);
 
   if (!isOpen || !agent) return null;
@@ -272,6 +361,11 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
           </div>
 
           <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+            <div className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              <ArrowUpDown className="w-3 h-3 text-blue-600" />
+              <span>Called & Changed Status on Top</span>
+            </div>
+
             <span className="text-slate-500 font-semibold text-[10.5px] sm:text-[11px] shrink-0">Status:</span>
             <select
               value={selectedStatus}

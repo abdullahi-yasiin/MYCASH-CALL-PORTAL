@@ -169,7 +169,16 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   const supervisedAgentIds = useMemo(() => new Set(supervisedAgents.map(a => a.id)), [supervisedAgents]);
   
   const teamRecords = useMemo(() => {
-    return records.filter(r => supervisedAgentIds.has(r.assignedAgentId) || r.supervisorId === currentUser.id);
+    const seen = new Set<string>();
+    const list: CustomerRecord[] = [];
+    for (const r of records) {
+      if (!r || !r.id || seen.has(r.id)) continue;
+      if (supervisedAgentIds.has(r.assignedAgentId) || r.supervisorId === currentUser.id) {
+        seen.add(r.id);
+        list.push(r);
+      }
+    }
+    return list;
   }, [records, supervisedAgentIds, currentUser.id]);
 
   const totalTeamLeads = teamRecords.length;

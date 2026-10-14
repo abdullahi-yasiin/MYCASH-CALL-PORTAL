@@ -371,7 +371,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // All upcoming appointments across team members' Excels (adheres to excelFilterMode & active Excels)
   const allAppointments = useMemo(() => {
-    let list = records.filter(r => r.appointment && r.appointment.trim() !== '');
+    const seen = new Set<string>();
+    let list: CustomerRecord[] = [];
+    for (const r of records) {
+      if (!r || !r.id || seen.has(r.id)) continue;
+      if (r.appointment && r.appointment.trim() !== '') {
+        seen.add(r.id);
+        list.push(r);
+      }
+    }
     if (excelFilterMode === 'available') {
       const activeAgentIds = new Set(teamMemberSummaries.filter(s => s.totalLeads > 0).map(s => s.agent.id));
       const activeAgentNames = new Set(teamMemberSummaries.filter(s => s.totalLeads > 0).map(s => s.agentName.trim().toLowerCase()));

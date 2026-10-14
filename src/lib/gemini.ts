@@ -79,6 +79,7 @@ export interface AiStrategicObservation {
 export interface AiAnalysisResult {
   reportTitle: string;
   generatedAt: string;
+  datePeriod?: string;
   language: 'english';
   executiveSummary: string;
   totalRecordsAnalyzed: number;
@@ -278,7 +279,8 @@ function getGenAIClient(): GoogleGenAI {
 export function generateOfflineHeuristicAnalysis(
   records: CustomerRecord[],
   branches: BranchInfo[],
-  agents: User[]
+  agents: User[],
+  datePeriod?: string
 ): AiAnalysisResult {
   const total = Math.max(1, records.length);
   const calledRecords = records.filter(r => r.hasBeenCalled || (r.status && r.status !== 'Uncalled'));
@@ -615,8 +617,9 @@ export function generateOfflineHeuristicAnalysis(
   return {
     reportTitle: 'AI Customer Feedback & Tele-Sales Intelligence Report',
     generatedAt: new Date().toISOString(),
+    datePeriod: datePeriod || 'All Time (Full Historical Dataset)',
     language: 'english',
-    executiveSummary: `Analysis of ${records.length} real customer records in the portal (${calledRecords.length} calls completed) demonstrates an overall conversion rate of ${Math.round((successRecords.length / Math.max(1, calledRecords.length)) * 100)}% (${successRecords.length} conversions, ${rejectedRecords.length} rejections, ${appointmentRecords.length} scheduled appointments/callbacks). Customer feedback notes logged in the portal reflect ${totalRealComplaints} specific complaints and issues. Strategic objection-handling training and dialer cooldown management are projected to elevate conversion velocity across regional hubs.`,
+    executiveSummary: `Analysis of ${records.length} real customer records in the portal for period ${datePeriod || 'All Time'} (${calledRecords.length} calls completed) demonstrates an overall conversion rate of ${Math.round((successRecords.length / Math.max(1, calledRecords.length)) * 100)}% (${successRecords.length} conversions, ${rejectedRecords.length} rejections, ${appointmentRecords.length} scheduled appointments/callbacks). Customer feedback notes logged in the portal reflect ${totalRealComplaints} specific complaints and issues. Strategic objection-handling training and dialer cooldown management are projected to elevate conversion velocity across regional hubs.`,
     totalRecordsAnalyzed: records.length,
     branchesCovered: Array.from(new Set(branches.map(b => b.name))),
     agentsCovered: Array.from(new Set(effectiveAgents.map(a => a.name))),
@@ -676,8 +679,9 @@ export async function runAiIntelligenceAnalysis(params: {
   branches: BranchInfo[];
   agents: User[];
   scopeName: string;
+  datePeriod?: string;
 }): Promise<AiAnalysisResult> {
-  const { records, branches, agents, scopeName } = params;
+  const { records, branches, agents, scopeName, datePeriod } = params;
 
   // Extract REAL customer feedback notes from the portal records
   // Prioritize notes that contain complaints, repeated calls, or appointments
@@ -768,11 +772,13 @@ CRITICAL INSTRUCTIONS:
 3. REPEATED CALLS & OVER-DIALING COMPLAINTS (TOP PRIORITY): Pay special attention to customer feedback notes describing customers being called several times, repeated outreach, or customers complaining about excessive calls (e.g., notes mentioning "marar badan", "dhowr jeer", "cabasho", "called several times", "cabanayaa"). If any such feedback exists in the data (especially under agents like Mohamed or any agent), YOU MUST PROMINENTLY HIGHLIGHT THIS as a High/Critical severity issue in "topComplaints" ("Excessive Calling Frequency & Customer Contact Fatigue (Repeated Calls)") and highlight it in that specific agent's performance review ("agentSummaries") with tailored remedial coaching.
 4. ACCURATE APPOINTMENTS & CALLBACKS BOOKED: Accurately reflect all ${appointmentRecords.length} booked appointments and callbacks. In "appointmentInsights", detail the scheduled appointments, specific customer reasons, and actionable punctuality advice.
 5. ALL ANALYSIS, HEADINGS, AND COACHING IN PROFESSIONAL ENGLISH: While quotes remain verbatim in Af-Soomaali, write all analysis, issue names, root causes, agent coaching, and leadership roadmaps in English.
+6. REPORTING TIMELINE & PERIOD: Explicitly reference the reporting period (${datePeriod || 'All Time'}) in the executive summary, analyzing agent outreach tempo, customer objections, and scheduled appointments for this specific timeframe.
 
 REAL PORTAL DATA:
 - Scope: ${scopeName}
-- Total Records: ${records.length}
-- Completed Calls: ${calledRecords.length}
+- Analysis Period / Date Window: ${datePeriod || 'All Time'} (Based on customer call dates & appointment created/scheduled dates)
+- Total Records Analyzed in Period: ${records.length}
+- Completed Calls in Period: ${calledRecords.length}
 - Success / Conversions: ${successRecords.length}
 - Rejections: ${rejectedRecords.length}
 - In-Progress: ${inProgressRecords.length}
@@ -893,7 +899,7 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
 }`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -920,9 +926,10 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       }));
     }
 
+    parsed.datePeriod = datePeriod || 'All Time';
     return parsed;
   } catch (error) {
     console.warn('[Gemini AI] Direct API call encountered error, falling back to real-data analytical engine:', error);
-    return generateOfflineHeuristicAnalysis(records, branches, agents);
+    return generateOfflineHeuristicAnalysis(records, branches, agents, datePeriod);
   }
 }

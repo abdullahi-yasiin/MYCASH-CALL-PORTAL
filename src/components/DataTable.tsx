@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Lock, 
   Phone, 
@@ -20,7 +20,8 @@ import {
   RotateCcw,
   Type,
   Trash2,
-  UserCheck
+  UserCheck,
+  X
 } from 'lucide-react';
 import { CustomerRecord, CallStatus, User, isRecordAssignedBySupervisor } from '../types';
 import { safeStorage } from '../utils/safeStorage';
@@ -128,6 +129,9 @@ export const DataTable: React.FC<DataTableProps> = ({
 
   // Copy feedback state
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Recently updated record ID for visual pulse & confirmation
+  const [justUpdatedId, setJustUpdatedId] = useState<string | null>(null);
 
   // Role permissions
   const isAgent = currentUser.role === 'TEAM_MEMBER';
@@ -237,19 +241,102 @@ export const DataTable: React.FC<DataTableProps> = ({
     setTimeout(() => setCopiedId(null), 1800);
   };
 
-  // Status Change Logic
+  // Helper to format string for datetime-local input safely
+  const formatForDatetimeLocal = (val?: string): string => {
+    if (!val) return '';
+    const trimmed = val.trim();
+    if (!trimmed) return '';
+
+    // If already in YYYY-MM-DDTHH:mm format
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 16);
+    }
+    // YYYY-MM-DD HH:mm
+    if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(trimmed)) {
+      return trimmed.replace(/\s+/, 'T').slice(0, 16);
+    }
+    // YYYY/MM/DD HH:mm
+    if (/^\d{4}\/\d{2}\/\d{2}[\sT]\d{2}:\d{2}/.test(trimmed)) {
+      return trimmed.replace(/\//g, '-').replace(/\s+/, 'T').slice(0, 16);
+    }
+    // DD/MM/YYYY or DD-MM-YYYY with optional time
+    const dmyMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[\sT](\d{1,2}):(\d{2}))?/);
+    if (dmyMatch) {
+      const [, d, m, y, h, min] = dmyMatch;
+      const day = d.padStart(2, '0');
+      const mon = m.padStart(2, '0');
+      const hour = (h || '09').padStart(2, '0');
+      const minute = (min || '00').padStart(2, '0');
+      return `${y}-${mon}-${day}T${hour}:${minute}`;
+    }
+    // Just YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return `${trimmed}T09:00`;
+    }
+    // Try standard Date parse
+    try {
+      const parsed = new Date(trimmed);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear();
+        const m = String(parsed.getMonth() + 1).padStart(2, '0');
+        const d = String(parsed.getDate()).padStart(2, '0');
+        const h = String(parsed.getHours()).padStart(2, '0');
+        const min = String(parsed.getMinutes()).padStart(2, '0');
+        return `${y}-${m}-${d}T${h}:${min}`;
+      }
+    } catch {
+      // ignore
+    }
+    return '';
+  };
+
+  // Helper to check if a record has active status, call, appointment, notes, or recent agent modifications
+  const isRecordChangedOrCalled = (r: CustomerRecord): boolean => {
+    if (!r) return false;
+    // 1. Status changed to anything other than Uncalled
+    if (r.status && r.status !== 'Uncalled') return true;
+    // 2. Has scheduled appointment
+    if (r.appointment && r.appointment.trim() !== '') return true;
+    // 3. Has been flagged as called or call count > 0
+    if (r.hasBeenCalled || (r.callCount && r.callCount > 0)) return true;
+    // 4. Has feedback or supervisor notes
+    if (r.feedbackNote && r.feedbackNote.trim() !== '') return true;
+    if (r.supervisorNote && r.supervisorNote.trim() !== '' && !r.supervisorNote.startsWith('[SUP_ASSIGN:')) return true;
+    // 5. CRITICAL: Any record modified/touched by an agent has updatedAt set, keeping changed-status records ON TOP
+    if (r.updatedAt && r.updatedAt.trim() !== '') {
+      if (!r.createdAt || r.createdAt.trim() === '') return true;
+      const updatedTime = new Date(r.updatedAt).getTime();
+      const createdTime = new Date(r.createdAt).getTime();
+      if (!isNaN(updatedTime) && !isNaN(createdTime)) {
+        if (updatedTime - createdTime > 5000) return true;
+      } else if (r.updatedAt !== r.createdAt) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Status Change Logic (Resilient back-and-forth transitions without zombie states)
   const handleStatusChange = (record: CustomerRecord, newStatus: CallStatus) => {
-    const isFirstTimeCalled = !record.hasBeenCalled && newStatus !== 'Uncalled';
     const today = new Date().toISOString().slice(0, 10);
+    const isCalled = newStatus !== 'Uncalled';
+    const hasAppt = Boolean(record.appointment && record.appointment.trim() !== '');
 
     const updatedRecord: CustomerRecord = {
       ...record,
       status: newStatus,
-      callDate: record.callDate || (isFirstTimeCalled ? today : record.callDate),
-      hasBeenCalled: record.hasBeenCalled || (newStatus !== 'Uncalled'),
-      callCount: isFirstTimeCalled ? 1 : Math.max(1, record.callCount),
+      callDate: isCalled ? (record.callDate || today) : record.callDate,
+      hasBeenCalled: isCalled || hasAppt,
+      callCount: isCalled 
+        ? Math.max(1, record.callCount || 1) 
+        : (hasAppt ? Math.max(1, record.callCount || 0) : 0),
       updatedAt: new Date().toISOString()
     };
+
+    setJustUpdatedId(record.id);
+    setTimeout(() => {
+      setJustUpdatedId(prev => (prev === record.id ? null : prev));
+    }, 2500);
 
     onUpdateRecord(
       updatedRecord,
@@ -264,17 +351,46 @@ export const DataTable: React.FC<DataTableProps> = ({
       callDate: newDate,
       updatedAt: new Date().toISOString()
     };
+
+    setJustUpdatedId(record.id);
+    setTimeout(() => {
+      setJustUpdatedId(prev => (prev === record.id ? null : prev));
+    }, 2500);
+
     onUpdateRecord(updatedRecord, `Call Date updated to ${newDate}`);
   };
 
-  // Handle Appointment edit
+  // Handle Appointment edit (Auto-transitions Uncalled to In-progress, keeps valid datetime)
   const handleAppointmentChange = (record: CustomerRecord, newAppointment: string) => {
+    const trimmed = (newAppointment || '').trim();
+    const hasAppt = Boolean(trimmed !== '');
+    const today = new Date().toISOString().slice(0, 10);
+
+    // If an appointment is scheduled on an Uncalled customer, transition status to In-progress
+    const newStatus: CallStatus = (record.status === 'Uncalled' && hasAppt) ? 'In-progress' : record.status;
+    const isCalled = newStatus !== 'Uncalled' || hasAppt;
+
     const updatedRecord: CustomerRecord = {
       ...record,
-      appointment: newAppointment,
+      appointment: trimmed,
+      status: newStatus,
+      callDate: record.callDate || (isCalled ? today : record.callDate),
+      hasBeenCalled: isCalled || record.hasBeenCalled,
+      callCount: isCalled ? Math.max(1, record.callCount || 1) : record.callCount,
       updatedAt: new Date().toISOString()
     };
-    onUpdateRecord(updatedRecord, `Follow-up appointment scheduled for ${newAppointment}`);
+
+    setJustUpdatedId(record.id);
+    setTimeout(() => {
+      setJustUpdatedId(prev => (prev === record.id ? null : prev));
+    }, 2500);
+
+    onUpdateRecord(
+      updatedRecord,
+      hasAppt
+        ? `Follow-up appointment scheduled for ${trimmed}${newStatus !== record.status ? ` (Status set to ${newStatus})` : ''}`
+        : 'Appointment cleared'
+    );
   };
 
   // Open note modal
@@ -293,6 +409,12 @@ export const DataTable: React.FC<DataTableProps> = ({
       [field]: tempNoteText.trim(),
       updatedAt: new Date().toISOString()
     };
+
+    setJustUpdatedId(record.id);
+    setTimeout(() => {
+      setJustUpdatedId(prev => (prev === record.id ? null : prev));
+    }, 2500);
+
     const fieldName = field === 'feedbackNote' ? 'Feedback Note' : 'Supervisor Note';
     onUpdateRecord(updatedRecord, `${fieldName} modified.`);
     setActiveNoteModal(null);
@@ -319,17 +441,113 @@ export const DataTable: React.FC<DataTableProps> = ({
     setSelectedIds([]);
   };
 
-  // Sort records
-  const sortedRecords = [...records].sort((a, b) => {
-    let aVal: any = a[sortField] || '';
-    let bVal: any = b[sortField] || '';
-    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+  // Sort records: Changed-status / called / scheduled records are ALWAYS placed on top,
+  // with newest updates/calls first, followed by uncontacted leads
+  const sortedRecords = useMemo(() => {
+    // 1. Deduplicate defensive check
+    const uniqueMap = new Map<string, CustomerRecord>();
+    for (const r of records) {
+      if (r && r.id && !uniqueMap.has(r.id)) {
+        uniqueMap.set(r.id, r);
+      }
+    }
+    const cleanRecords = Array.from(uniqueMap.values());
 
-    if (aVal < bVal) return sortAsc ? -1 : 1;
-    if (aVal > bVal) return sortAsc ? 1 : -1;
-    return 0;
-  });
+    return cleanRecords.sort((a, b) => {
+      const aCalled = isRecordChangedOrCalled(a);
+      const bCalled = isRecordChangedOrCalled(b);
+
+      // RULE 1: Changed-status / called / appointment records ALWAYS on top!
+      if (aCalled !== bCalled) {
+        return aCalled ? -1 : 1;
+      }
+
+      // RULE 2: For changed / called / scheduled records at the top:
+      if (aCalled && bCalled) {
+        // A) If one has appointment and one doesn't, put scheduled callbacks first!
+        const aHasAppt = Boolean(a.appointment && a.appointment.trim());
+        const bHasAppt = Boolean(b.appointment && b.appointment.trim());
+        if (aHasAppt !== bHasAppt) return aHasAppt ? -1 : 1;
+
+        // B) If user explicitly clicked a column header to sort:
+        if (sortField === 'status') {
+          const statusRank: Record<string, number> = {
+            'Success': 1,
+            'In-progress': 2,
+            'Not Available': 3,
+            'Rejected': 4,
+            'Uncalled': 5
+          };
+          const aRank = statusRank[a.status] || 99;
+          const bRank = statusRank[b.status] || 99;
+          if (aRank !== bRank) {
+            return sortAsc ? (aRank - bRank) : (bRank - aRank);
+          }
+        } else if (sortField === 'appointment') {
+          const aAppt = (a.appointment || '').trim();
+          const bAppt = (b.appointment || '').trim();
+          if (aAppt !== bAppt) {
+            return sortAsc ? aAppt.localeCompare(bAppt) : bAppt.localeCompare(aAppt);
+          }
+        } else if (sortField !== 'callDate' && sortField !== 'updatedAt') {
+          const aVal = String(a[sortField] || '').toLowerCase();
+          const bVal = String(b[sortField] || '').toLowerCase();
+          if (aVal !== bVal) {
+            return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+          }
+        }
+
+        // C) Most recently modified or interacted with record comes FIRST (updatedAt DESC)
+        const aUpdated = a.updatedAt || '';
+        const bUpdated = b.updatedAt || '';
+        if (aUpdated !== bUpdated) {
+          return bUpdated.localeCompare(aUpdated); // newest update on top
+        }
+
+        // D) Most recent call date
+        const aCall = a.callDate || '';
+        const bCall = b.callDate || '';
+        if (aCall !== bCall) {
+          if (sortField === 'callDate' && sortAsc) {
+            return aCall.localeCompare(bCall);
+          }
+          return bCall.localeCompare(aCall); // newest call date first
+        }
+
+        const aAppt = (a.appointment || '').trim();
+        const bAppt = (b.appointment || '').trim();
+        if (aAppt !== bAppt) {
+          return aAppt.localeCompare(bAppt);
+        }
+      }
+
+      // RULE 3: For uncontacted leads below the line:
+      if (!aCalled && !bCalled) {
+        if (sortField !== 'callDate' && sortField !== 'updatedAt' && sortField !== 'status') {
+          const aVal = String(a[sortField] || '').toLowerCase();
+          const bVal = String(b[sortField] || '').toLowerCase();
+          if (aVal !== bVal) {
+            return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+          }
+        }
+        if (sortField === 'callDate') {
+          const aCall = a.callDate || '';
+          const bCall = b.callDate || '';
+          if (aCall && bCall && aCall !== bCall) {
+            return sortAsc ? aCall.localeCompare(bCall) : bCall.localeCompare(aCall);
+          }
+        }
+        // Preserve original created/import sequence
+        const aCreated = a.createdAt || '';
+        const bCreated = b.createdAt || '';
+        if (aCreated !== bCreated) {
+          return bCreated.localeCompare(aCreated);
+        }
+      }
+
+      return a.id.localeCompare(b.id);
+    });
+  }, [records, sortField, sortAsc]);
 
   // Paginate
   const totalPages = Math.ceil(sortedRecords.length / pageSize) || 1;
@@ -645,8 +863,10 @@ export const DataTable: React.FC<DataTableProps> = ({
                 return (
                   <tr 
                     key={record.id}
-                    className={`transition-colors group hover:bg-slate-50/90 ${
+                    className={`transition-all duration-300 group hover:bg-slate-50/90 ${
                       isSelected ? 'bg-blue-50/50' : ''
+                    } ${
+                      justUpdatedId === record.id ? 'bg-blue-50/80 ring-2 ring-blue-500/60 ring-inset shadow-xs' : ''
                     }`}
                   >
                     {/* Checkbox */}
@@ -762,15 +982,49 @@ export const DataTable: React.FC<DataTableProps> = ({
                       style={{ width: `${columnWidths.appointment}px` }}
                       className={`${pyClass} px-3 overflow-hidden align-top`}
                     >
-                      <input
-                        type="datetime-local"
-                        value={record.appointment || ''}
-                        onChange={(e) => handleAppointmentChange(record, e.target.value)}
-                        placeholder="Set date & time"
-                        className={`w-full bg-white border rounded px-1.5 py-0.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-[11px] ${
-                          record.appointment ? 'border-red-300 bg-red-50/40 text-red-900 font-semibold' : 'border-slate-200'
-                        }`}
-                      />
+                      <div className="flex items-center gap-1 w-full">
+                        <input
+                          type="datetime-local"
+                          value={formatForDatetimeLocal(record.appointment)}
+                          onChange={(e) => handleAppointmentChange(record, e.target.value)}
+                          placeholder="Set date & time"
+                          className={`w-full min-w-0 bg-white border rounded px-1.5 py-0.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-[11px] cursor-pointer ${
+                            record.appointment ? 'border-red-300 bg-red-50/50 text-red-900 font-semibold' : 'border-slate-200'
+                          }`}
+                        />
+                        {record.appointment && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAppointmentChange(record, '');
+                            }}
+                            className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors shrink-0 cursor-pointer"
+                            title="Clear appointment date & time"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Display custom non-datetime string like 'Callback Booked' from Excel */}
+                      {record.appointment && !formatForDatetimeLocal(record.appointment) && (
+                        <div className="mt-1 flex items-center justify-between gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-red-50 text-red-800 border border-red-200">
+                          <span className="truncate">{record.appointment}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAppointmentChange(record, '');
+                            }}
+                            className="text-red-500 hover:text-red-700 shrink-0 cursor-pointer"
+                            title="Clear text appointment"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      )}
+
                       {isRecordAssignedBySupervisor(record) && (
                         <div className="mt-1">
                           <span 

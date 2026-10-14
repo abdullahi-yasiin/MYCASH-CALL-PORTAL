@@ -73,7 +73,7 @@ export function toDBCustomerRecord(record: CustomerRecord) {
     has_been_called: record.hasBeenCalled ?? false,
     call_count: record.callCount ?? 0,
     imported_batch_id: record.importedBatchId || '',
-    updated_at: record.updatedAt || new Date().toISOString(),
+    updated_at: record.updatedAt || null,
     created_at: record.createdAt || new Date().toISOString(),
   };
 }
@@ -122,7 +122,7 @@ export function fromDBCustomerRecord(row: any): CustomerRecord {
     customerName: row.customer_name || row.customerName || '',
     phoneNumber: row.phone_number || row.phoneNumber || '',
     areaOfReg: row.area_of_reg || row.areaOfReg || 'General',
-    callDate: row.call_date || row.callDate || new Date().toISOString().split('T')[0],
+    callDate: row.call_date || row.callDate || '',
     status: row.status || 'Uncalled',
     appointment: row.appointment || '',
     feedbackNote: row.feedback_note || row.feedbackNote || '',
@@ -137,8 +137,8 @@ export function fromDBCustomerRecord(row: any): CustomerRecord {
     reassignedFromAgentId: reassignedFromAgentId,
     reassignedFromAgentName: reassignedFromAgentName,
     reassignedAt: reassignedAt,
-    updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
-    createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+    updatedAt: row.updated_at || row.updatedAt || '',
+    createdAt: row.created_at || row.createdAt || '',
   };
 }
 
@@ -288,7 +288,7 @@ export const supabaseDb = {
   // Fetch all customer records with automatic pagination across 1,000-row limits
   async fetchCustomers(): Promise<CustomerRecord[] | null> {
     try {
-      let allRows: any[] = [];
+      const rowMap = new Map<string, any>();
       const PAGE_SIZE = 1000;
       let page = 0;
       let hasMore = true;
@@ -300,17 +300,22 @@ export const supabaseDb = {
           .from('customer_records')
           .select('*')
           .order('created_at', { ascending: false })
+          .order('id', { ascending: true })
           .range(from, to);
 
         if (error) {
           console.warn('Supabase fetchCustomers notice:', error.message);
           // If we already retrieved earlier pages, return what we got
-          if (allRows.length > 0) break;
+          if (rowMap.size > 0) break;
           return null;
         }
 
         if (data && data.length > 0) {
-          allRows.push(...data);
+          for (const row of data) {
+            if (row && row.id && !rowMap.has(row.id)) {
+              rowMap.set(row.id, row);
+            }
+          }
           if (data.length < PAGE_SIZE) {
             hasMore = false;
           } else {
@@ -321,8 +326,9 @@ export const supabaseDb = {
         }
       }
 
-      console.log(`[Supabase fetchCustomers: Complete] Successfully fetched ${allRows.length} total customer records.`);
-      return allRows.map(fromDBCustomerRecord);
+      const uniqueRows = Array.from(rowMap.values());
+      console.log(`[Supabase fetchCustomers: Complete] Successfully fetched ${uniqueRows.length} unique customer records.`);
+      return uniqueRows.map(fromDBCustomerRecord);
     } catch (err) {
       console.warn('Supabase fetchCustomers error:', err);
       return null;

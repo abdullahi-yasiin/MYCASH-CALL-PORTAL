@@ -64,18 +64,21 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
   };
 
   const handleSaveAll = () => {
-    const isFirstTimeCalled = !record.hasBeenCalled && tempStatus !== 'Uncalled';
     const today = new Date().toISOString().slice(0, 10);
+    const hasAppt = Boolean(tempAppointment && tempAppointment.trim() !== '');
+    // If appointment is present and status was Uncalled, set status to In-progress
+    const finalStatus: CallStatus = (tempStatus === 'Uncalled' && hasAppt) ? 'In-progress' : tempStatus;
+    const isCalled = finalStatus !== 'Uncalled' || hasAppt;
 
     const updated: CustomerRecord = {
       ...record,
-      status: tempStatus,
-      callDate: tempCallDate || (isFirstTimeCalled ? today : record.callDate),
-      appointment: tempAppointment,
-      feedbackNote: tempFeedback,
-      supervisorNote: canEditSupervisorNote ? tempSupervisorNote : record.supervisorNote,
-      hasBeenCalled: record.hasBeenCalled || (tempStatus !== 'Uncalled'),
-      callCount: isFirstTimeCalled ? 1 : Math.max(1, record.callCount),
+      status: finalStatus,
+      callDate: tempCallDate || (isCalled ? today : record.callDate),
+      appointment: tempAppointment.trim(),
+      feedbackNote: tempFeedback.trim(),
+      supervisorNote: canEditSupervisorNote ? tempSupervisorNote.trim() : record.supervisorNote,
+      hasBeenCalled: isCalled,
+      callCount: isCalled ? Math.max(1, record.callCount || 1) : 0,
       updatedAt: new Date().toISOString()
     };
 
@@ -181,13 +184,13 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
             <label className="font-bold text-slate-800 text-xs block">
               Call Outcome Status (Unique Call Rule)
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(['Success', 'In-progress', 'Not Available', 'Rejected'] as CallStatus[]).map((st) => (
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 sm:gap-2">
+              {(['Success', 'In-progress', 'Not Available', 'Rejected', 'Uncalled'] as CallStatus[]).map((st) => (
                 <button
                   key={st}
                   type="button"
                   onClick={() => setTempStatus(st)}
-                  className={`py-1.5 px-2.5 rounded-sm font-bold text-xs border text-center transition-all cursor-pointer ${
+                  className={`py-1.5 px-2 rounded-sm font-bold text-xs border text-center transition-all cursor-pointer ${
                     tempStatus === st
                       ? st === 'Success'
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
@@ -195,7 +198,9 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
                         ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
                         : st === 'Not Available'
                         ? 'bg-slate-700 text-white border-slate-700 shadow-xs'
-                        : 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                        : st === 'Rejected'
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                        : 'bg-zinc-700 text-white border-zinc-700 shadow-xs'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
@@ -224,16 +229,49 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
             </div>
 
             <div>
-              <label className="font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-red-600" />
-                Scheduled Appointment
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-red-600" />
+                  Scheduled Appointment
+                </label>
+                {tempAppointment && (
+                  <button
+                    type="button"
+                    onClick={() => setTempAppointment('')}
+                    className="text-[11px] text-red-600 hover:text-red-800 font-semibold cursor-pointer flex items-center gap-0.5"
+                    title="Clear appointment"
+                  >
+                    <X className="w-3 h-3" />
+                    <span>Clear</span>
+                  </button>
+                )}
+              </div>
               <input
                 type="datetime-local"
-                value={tempAppointment}
-                onChange={(e) => setTempAppointment(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={
+                  tempAppointment.includes('T') 
+                    ? tempAppointment.slice(0, 16) 
+                    : tempAppointment.match(/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/)
+                    ? tempAppointment.replace(/\s+/, 'T').slice(0, 16)
+                    : tempAppointment.match(/^\d{4}-\d{2}-\d{2}$/)
+                    ? `${tempAppointment}T09:00`
+                    : ''
+                }
+                onChange={(e) => {
+                  setTempAppointment(e.target.value);
+                  if (tempStatus === 'Uncalled' && e.target.value) {
+                    setTempStatus('In-progress');
+                  }
+                }}
+                className={`w-full bg-white border rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                  tempAppointment ? 'border-red-300 bg-red-50/30' : 'border-slate-300'
+                }`}
               />
+              {tempAppointment && !tempAppointment.match(/^\d{4}-\d{2}-\d{2}/) && (
+                <div className="mt-1 text-[11px] text-amber-700 font-medium">
+                  Note from import: "{tempAppointment}"
+                </div>
+              )}
             </div>
           </div>
 

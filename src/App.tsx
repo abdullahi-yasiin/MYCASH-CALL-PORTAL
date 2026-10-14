@@ -84,19 +84,33 @@ const INITIAL_FILTERS: FilterState = {
   searchQuery: ''
 };
 
-// Purge deleted test records and test appointments, while strictly preserving all real customer leads
+// Purge deleted test records and deduplicate records by ID, while strictly preserving all real customer leads
 export function sanitizeRecordsWithAgentUsers(
   recordsList: CustomerRecord[], 
   userList: User[]
 ): { valid: CustomerRecord[]; orphaned: CustomerRecord[] } {
-  // Purge any deleted test records and test appointments whose excel record was deleted
-  const cleanList = recordsList.filter(r => 
-    r.id !== 'rec-imp-1791793349671-127' && 
-    !(r.customerName && (r.customerName.toLowerCase().includes('test appointment') || (r.customerName.toLowerCase().trim() === 'test' && r.appointment))) &&
-    !(r.feedbackNote && r.feedbackNote.toLowerCase().includes('test appointment')) &&
-    !(r.appointment && r.appointment.toLowerCase().includes('test appointment')) &&
-    !(r.customerName === '' && r.appointment)
-  );
+  const seenIds = new Set<string>();
+  const cleanList: CustomerRecord[] = [];
+
+  for (const r of recordsList) {
+    if (!r || !r.id || seenIds.has(r.id)) {
+      continue;
+    }
+
+    // Purge any deleted test records and test appointments whose excel record was deleted
+    if (
+      r.id === 'rec-imp-1791793349671-127' || 
+      (r.customerName && (r.customerName.toLowerCase().includes('test appointment') || (r.customerName.toLowerCase().trim() === 'test' && r.appointment))) ||
+      (r.feedbackNote && r.feedbackNote.toLowerCase().includes('test appointment')) ||
+      (r.appointment && r.appointment.toLowerCase().includes('test appointment')) ||
+      (r.customerName === '' && r.appointment)
+    ) {
+      continue;
+    }
+
+    seenIds.add(r.id);
+    cleanList.push(r);
+  }
 
   // Preserve all customer records (including unassigned pool leads and excel agents)
   return { valid: cleanList, orphaned: [] };
@@ -560,12 +574,37 @@ export default function App() {
               }
               const { valid } = sanitizeRecordsWithAgentUsers(remoteCustomers, currentUsersList);
               if (valid.length > 0) {
-                setRecords(valid);
+                setRecords(prev => {
+                  if (prev.length === 0) return valid;
+                  const localMap = new Map(prev.map(r => [r.id, r]));
+                  const merged = valid.map(remoteRec => {
+                    const local = localMap.get(remoteRec.id);
+                    if (local) {
+                      const localTime = local.updatedAt || local.createdAt || '';
+                      const remoteTime = remoteRec.updatedAt || remoteRec.createdAt || '';
+                      if (localTime >= remoteTime) {
+                        return local;
+                      }
+                    }
+                    return remoteRec;
+                  });
+                  const remoteIds = new Set(valid.map(r => r.id));
+                  const localOnly = prev.filter(r => !remoteIds.has(r.id));
+                  const combined = [...localOnly, ...merged];
+                  const finalMap = new Map<string, CustomerRecord>();
+                  for (const r of combined) {
+                    if (r && r.id && !finalMap.has(r.id)) {
+                      finalMap.set(r.id, r);
+                    }
+                  }
+                  const finalList = Array.from(finalMap.values());
+                  saveRecordsToIDB(finalList);
+                  if (finalList.length <= 500) {
+                    safeStorage.setItem('mycash_v3_records', JSON.stringify(finalList));
+                  }
+                  return finalList;
+                });
                 isRecordsInitializedRef.current = true;
-                saveRecordsToIDB(valid);
-                if (valid.length <= 500) {
-                  safeStorage.setItem('mycash_v3_records', JSON.stringify(valid));
-                }
               }
             }
           } catch (e) {
@@ -676,9 +715,21 @@ export default function App() {
         const isSupervisorAssigned = isRecordAssignedBySupervisor(r);
 
         return hasAppointment || isSupervisorAssigned;
-      }).sort((a, b) => ((a.appointment || '') > (b.appointment || '') ? 1 : -1));
+      }).sort((a, b) => {
+        const aAppt = (a.appointment || '').trim();
+        const bAppt = (b.appointment || '').trim();
+        if (aAppt && !bAppt) return -1;
+        if (!aAppt && bAppt) return 1;
+        return aAppt.localeCompare(bAppt);
+      });
     }
-    return filteredRecords.filter(r => (r.appointment && r.appointment.trim() !== '') || isRecordAssignedBySupervisor(r));
+    return filteredRecords.filter(r => (r.appointment && r.appointment.trim() !== '') || isRecordAssignedBySupervisor(r)).sort((a, b) => {
+      const aAppt = (a.appointment || '').trim();
+      const bAppt = (b.appointment || '').trim();
+      if (aAppt && !bAppt) return -1;
+      if (!aAppt && bAppt) return 1;
+      return aAppt.localeCompare(bAppt);
+    });
   }, [records, filteredRecords, currentUser]);
 
   // Supervisors and Team Members lists
@@ -695,7 +746,14 @@ export default function App() {
   // Record update handler
   const handleUpdateRecord = (updatedRecord: CustomerRecord, changeDetails: string) => {
     if (!currentUser) return;
-    setRecords(prev => prev.map(r => (r.id === updatedRecord.id ? updatedRecord : r)));
+    setRecords(prev => {
+      const nextList = prev.map(r => (r.id === updatedRecord.id ? updatedRecord : r));
+      saveRecordsToIDB(nextList);
+      if (nextList.length <= 500) {
+        safeStorage.setItem('mycash_v3_records', JSON.stringify(nextList));
+      }
+      return nextList;
+    });
 
     // Create activity log entry
     const newLog: ActivityLog = {
@@ -724,7 +782,23 @@ export default function App() {
   // Bulk import commit handler
   const handleCommitImport = (newRecords: CustomerRecord[], batchName: string) => {
     if (!currentUser) return;
-    setRecords(prev => [...newRecords, ...prev]);
+    setRecords(prev => {
+      const recMap = new Map<string, CustomerRecord>();
+      for (const r of newRecords) {
+        if (r && r.id) recMap.set(r.id, r);
+      }
+      for (const r of prev) {
+        if (r && r.id && !recMap.has(r.id)) {
+          recMap.set(r.id, r);
+        }
+      }
+      const combined = Array.from(recMap.values());
+      saveRecordsToIDB(combined);
+      if (combined.length <= 500) {
+        safeStorage.setItem('mycash_v3_records', JSON.stringify(combined));
+      }
+      return combined;
+    });
 
     const importLog: ActivityLog = {
       id: `log-${Date.now()}`,

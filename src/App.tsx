@@ -84,7 +84,7 @@ const INITIAL_FILTERS: FilterState = {
   searchQuery: ''
 };
 
-// Purge and isolate customer records that do not belong to any valid agent user
+// Purge deleted test records and test appointments, while strictly preserving all real customer leads
 export function sanitizeRecordsWithAgentUsers(
   recordsList: CustomerRecord[], 
   userList: User[]
@@ -92,32 +92,14 @@ export function sanitizeRecordsWithAgentUsers(
   // Purge any deleted test records and test appointments whose excel record was deleted
   const cleanList = recordsList.filter(r => 
     r.id !== 'rec-imp-1791793349671-127' && 
-    !(r.customerName && (r.customerName.toLowerCase().includes('test') || r.customerName.toLowerCase().includes('test appointment'))) &&
-    !(r.feedbackNote && (r.feedbackNote.toLowerCase().includes('test') || r.feedbackNote.toLowerCase().includes('test appointment'))) &&
-    !(r.appointment && (r.appointment.toLowerCase().includes('test') || r.appointment.toLowerCase().includes('test appointment'))) &&
+    !(r.customerName && (r.customerName.toLowerCase().includes('test appointment') || (r.customerName.toLowerCase().trim() === 'test' && r.appointment))) &&
+    !(r.feedbackNote && r.feedbackNote.toLowerCase().includes('test appointment')) &&
+    !(r.appointment && r.appointment.toLowerCase().includes('test appointment')) &&
     !(r.customerName === '' && r.appointment)
   );
 
-  const agentUsers = userList.filter(u => u.role === 'TEAM_MEMBER');
-  const effectiveAgents = agentUsers.length > 0 ? agentUsers : userList;
-  const validAgentIds = new Set(effectiveAgents.map(u => u.id));
-  const validAgentNames = new Set(effectiveAgents.map(u => u.name.trim().toLowerCase()));
-
-  const valid: CustomerRecord[] = [];
-  const orphaned: CustomerRecord[] = [];
-
-  for (const r of cleanList) {
-    const hasValidId = Boolean(r.assignedAgentId && r.assignedAgentId.trim() !== '' && r.assignedAgentId.toLowerCase() !== 'unassigned' && validAgentIds.has(r.assignedAgentId));
-    const hasValidName = Boolean(r.assignedAgentName && r.assignedAgentName.trim() !== '' && r.assignedAgentName.trim().toLowerCase() !== 'unassigned' && validAgentNames.has(r.assignedAgentName.trim().toLowerCase()));
-
-    if (hasValidId || hasValidName) {
-      valid.push(r);
-    } else {
-      orphaned.push(r);
-    }
-  }
-
-  return { valid, orphaned };
+  // Preserve all customer records (including unassigned pool leads and excel agents)
+  return { valid: cleanList, orphaned: [] };
 }
 
 export default function App() {
@@ -261,6 +243,7 @@ export default function App() {
 
   const lastActivityRef = useRef<number>(Date.now());
   const lastStoredWriteRef = useRef<number>(Date.now());
+  const isRecordsInitializedRef = useRef<boolean>(records.length > 0);
 
   // Focus Calling Mode for high-productivity outbound dialing
   const [isFocusModeActive, setIsFocusModeActive] = useState<boolean>(false);
@@ -505,36 +488,23 @@ export default function App() {
           console.warn('[Supabase Users Sync: Warning] Users table unreachable or not provisioned in Supabase.');
         }
 
-        // Database Integrity Check: Automatically purge any customer records with no Agent user in cloud database
-        if (conn.tables.customerRecords && activeUsers.length > 0) {
-          try {
-            console.log('[Supabase Database Integrity] Scanning for customer records with no Agent user...');
-            const purgeRes = await supabaseDb.purgeOrphanedCustomerRecords(activeUsers);
-            if (purgeRes.deletedCount > 0) {
-              console.log(`[Supabase Database Integrity] Successfully purged ${purgeRes.deletedCount} orphaned records with no Agent user from Supabase.`);
-            }
-          } catch (purgeErr) {
-            console.warn('[Supabase Database Integrity notice]', purgeErr);
-          }
-        }
-
+        // Safe Customer Records Sync with Supabase
         if (conn.tables.customerRecords) {
           // Fetch existing customers from remote DB to ensure persistence
           const remoteCustomers = await supabaseDb.fetchCustomers();
-          if (remoteCustomers !== null) {
-            // Strictly sanitize against active users: Only available customer records for valid Agent users are kept
-            const { valid, orphaned } = sanitizeRecordsWithAgentUsers(remoteCustomers, activeUsers);
-            setRecords(valid);
-            saveRecordsToIDB(valid);
-            if (valid.length <= 250) {
-              safeStorage.setItem('mycash_v3_records', JSON.stringify(valid));
-            } else {
-              safeStorage.removeItem('mycash_v3_records');
+          if (remoteCustomers !== null && remoteCustomers.length > 0) {
+            const { valid } = sanitizeRecordsWithAgentUsers(remoteCustomers, activeUsers);
+            if (valid.length > 0) {
+              setRecords(valid);
+              isRecordsInitializedRef.current = true;
+              saveRecordsToIDB(valid);
+              if (valid.length <= 500) {
+                safeStorage.setItem('mycash_v3_records', JSON.stringify(valid));
+              }
             }
-            if (orphaned.length > 0) {
-              console.warn(`[Supabase Customer Sync] Found ${orphaned.length} orphaned customer records with no valid agent. Purging from Supabase...`);
-              await supabaseDb.deleteCustomers(orphaned.map(r => r.id));
-            }
+          } else if (remoteCustomers !== null && remoteCustomers.length === 0 && records.length > 0) {
+            // Push local dataset to remote cloud database
+            supabaseDb.batchUpsertCustomers(records);
           }
         }
 
@@ -578,7 +548,7 @@ export default function App() {
           try {
             console.log('[Supabase Realtime: Event] customer_records modified in backend. Refreshing...');
             const remoteCustomers = await supabaseDb.fetchCustomers();
-            if (remoteCustomers !== null) {
+            if (remoteCustomers !== null && remoteCustomers.length > 0) {
               // Get current users from state/safeStorage to sanitize
               const savedUsersStr = safeStorage.getItem('mycash_v3_users');
               let currentUsersList = users;
@@ -589,12 +559,13 @@ export default function App() {
                 } catch (e) {}
               }
               const { valid } = sanitizeRecordsWithAgentUsers(remoteCustomers, currentUsersList);
-              setRecords(valid);
-              saveRecordsToIDB(valid);
-              if (valid.length <= 250) {
-                safeStorage.setItem('mycash_v3_records', JSON.stringify(valid));
-              } else {
-                safeStorage.removeItem('mycash_v3_records');
+              if (valid.length > 0) {
+                setRecords(valid);
+                isRecordsInitializedRef.current = true;
+                saveRecordsToIDB(valid);
+                if (valid.length <= 500) {
+                  safeStorage.setItem('mycash_v3_records', JSON.stringify(valid));
+                }
               }
             }
           } catch (e) {
@@ -611,8 +582,10 @@ export default function App() {
 
   // Hydrate records from IndexedDB if localStorage was empty or cleared
   useEffect(() => {
+    let isMounted = true;
     if (records.length === 0) {
       getRecordsFromIDB().then(cachedRecords => {
+        if (!isMounted) return;
         if (cachedRecords && cachedRecords.length > 0) {
           setRecords(prev => {
             if (prev.length === 0) {
@@ -622,8 +595,14 @@ export default function App() {
             return prev;
           });
         }
+        isRecordsInitializedRef.current = true;
       });
+    } else {
+      isRecordsInitializedRef.current = true;
     }
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Synchronize storage safely with QuotaExceeded resilience
@@ -644,12 +623,14 @@ export default function App() {
   }, [isAuthView]);
 
   useEffect(() => {
+    // Prevent wiping IndexedDB with [] on initial mount before IDB hydration
+    if (!isRecordsInitializedRef.current && records.length === 0) {
+      return;
+    }
+    isRecordsInitializedRef.current = true;
     saveRecordsToIDB(records);
-    if (records.length <= 250) {
+    if (records.length <= 500) {
       safeStorage.setItem('mycash_v3_records', JSON.stringify(records));
-    } else {
-      // Free localStorage quota while full dataset remains persistent in IndexedDB & Supabase
-      safeStorage.removeItem('mycash_v3_records');
     }
   }, [records]);
 
@@ -1249,13 +1230,10 @@ export default function App() {
       }
 
       if (!supabaseSuccess) {
-        console.error(`[Delete Excel: Step 3 FAILED] Supabase rejected deletion transaction.`);
-        showToast('Failed to delete customer records from Supabase backend.', 'error');
-        console.groupEnd();
-        return false;
+        console.warn(`[Delete Excel: Step 3 Notice] Supabase deletion transaction was unavailable or skipped; proceeding with local deletion.`);
+      } else {
+        console.log(`[Delete Excel: Step 4] Supabase backend deletion confirmed.`);
       }
-
-      console.log(`[Delete Excel: Step 4] Supabase backend deletion confirmed.`);
 
       // Step 5: Update React state & safeStorage with IndexedDB persistence
       const idSet = new Set(targetIds);
@@ -1404,7 +1382,7 @@ export default function App() {
           showToast('Dashboard metrics & customer roster synchronized.');
         }}
         onOpenProfileSettings={() => setIsProfileSettingsOpen(true)}
-        onOpenAiIntelligence={currentUser?.role === 'HQ_ADMIN' ? () => setIsAiIntelligenceOpen(true) : undefined}
+        onOpenAiIntelligence={(currentUser?.role === 'HQ_ADMIN' || currentUser?.role === 'SUPERVISOR') ? () => setIsAiIntelligenceOpen(true) : undefined}
       />
 
       {/* Main Container */}
@@ -1485,6 +1463,7 @@ export default function App() {
               showToast('Team performance metrics and records updated.');
             }}
             onUpdateRecord={handleUpdateRecord}
+            onOpenAiIntelligence={() => setIsAiIntelligenceOpen(true)}
           />
         ) : (
           /* ======================================================= */
@@ -1865,8 +1844,8 @@ export default function App() {
         onLogoutNow={handleSessionTimeout}
       />
 
-      {/* AI Intelligence & Customer Feedback Analytics Modal (HQ Admin Only) */}
-      {currentUser?.role === 'HQ_ADMIN' && (
+      {/* AI Intelligence & Customer Feedback Analytics Modal */}
+      {(currentUser?.role === 'HQ_ADMIN' || currentUser?.role === 'SUPERVISOR') && isAiIntelligenceOpen && (
         <AiIntelligenceModal
           isOpen={isAiIntelligenceOpen}
           onClose={() => setIsAiIntelligenceOpen(false)}

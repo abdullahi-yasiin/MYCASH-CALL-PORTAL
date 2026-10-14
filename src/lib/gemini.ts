@@ -220,7 +220,6 @@ export function isRecordInBranch(
   if (!r) return false;
   const branchName = typeof branch === 'string' ? branch : branch.name;
   const branchRegion = typeof branch === 'object' && branch ? branch.region : '';
-  const branchSupId = typeof branch === 'object' && branch ? branch.supervisorId : '';
 
   const recArea = (r.areaOfReg || '').trim();
   const bNorm = normalizeBranchName(branchName);
@@ -230,26 +229,25 @@ export function isRecordInBranch(
   if (recArea && branchName) {
     if (recArea.toLowerCase() === branchName.toLowerCase()) return true;
     if (rNorm && bNorm && rNorm === bNorm) return true;
-    if (rNorm && bNorm && (bNorm.includes(rNorm) || rNorm.includes(bNorm))) return true;
+
+    // Clean name comparison (e.g. "Garowe" === "Garowe Branch")
+    const bClean = branchName.toLowerCase().replace(/branch|hub|office|central|[_-\s]+/gi, '').trim();
+    const rClean = recArea.toLowerCase().replace(/branch|hub|office|central|[_-\s]+/gi, '').trim();
+    if (bClean && rClean && bClean === rClean) return true;
   }
 
-  // 2. Region comparison
+  // 2. Exact region comparison if area matches region
   if (recArea && branchRegion) {
     const regNorm = normalizeBranchName(branchRegion);
-    if (rNorm && regNorm && (rNorm === regNorm || rNorm.includes(regNorm) || regNorm.includes(rNorm))) return true;
+    if (rNorm && regNorm && rNorm === regNorm) return true;
   }
 
-  // 3. Supervisor assignment
-  if (branchSupId && r.supervisorId && r.supervisorId === branchSupId) {
-    return true;
-  }
-
-  // 4. Agent assignment: if the record's assigned agent is known to belong to this branch
-  if (branchAgents && branchAgents.length > 0) {
+  // 3. Fallback to assigned agent's branch ONLY if areaOfReg is unassigned or empty
+  if ((!recArea || recArea.toLowerCase() === 'unassigned') && branchAgents && branchAgents.length > 0) {
     const matchedAgent = branchAgents.find(ag => isRecordAssignedToAgent(r, ag));
-    if (matchedAgent) {
+    if (matchedAgent && matchedAgent.branch) {
       const agBranchNorm = normalizeBranchName(matchedAgent.branch);
-      if (agBranchNorm === bNorm || agBranchNorm.includes(bNorm) || bNorm.includes(agBranchNorm)) {
+      if (agBranchNorm && bNorm && agBranchNorm === bNorm) {
         return true;
       }
     }

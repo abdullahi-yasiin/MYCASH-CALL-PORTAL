@@ -157,9 +157,6 @@ export const safeStorage = {
   },
 
   setItem(key: string, value: string): boolean {
-    if (key === 'mycash_v3_records') {
-      return false;
-    }
     try {
       if (typeof window === 'undefined' || !window.localStorage) return false;
       localStorage.setItem(key, value);

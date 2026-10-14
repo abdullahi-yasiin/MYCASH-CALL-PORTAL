@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Sparkles, 
   X, 
@@ -27,7 +27,7 @@ import {
   Lock
 } from 'lucide-react';
 import { CustomerRecord, BranchInfo, User } from '../types';
-import { runAiIntelligenceAnalysis, AiAnalysisResult, isRecordAssignedToAgent, isAppointmentRecord, isRecordInBranch, normalizeBranchName } from '../lib/gemini';
+import { runAiIntelligenceAnalysis, generateOfflineHeuristicAnalysis, AiAnalysisResult, isRecordAssignedToAgent, isAppointmentRecord, isRecordInBranch, normalizeBranchName } from '../lib/gemini';
 import { generateAiIntelligencePdf } from '../utils/aiPdfExport';
 
 interface AiIntelligenceModalProps {
@@ -49,8 +49,6 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
   allAgents,
   records
 }) => {
-  if (!isOpen || currentUser.role !== 'HQ_ADMIN') return null;
-
   // Dynamically combine registered branches with any distinct branches/areas present in records
   const combinedBranches = useMemo(() => {
     const list: BranchInfo[] = [...allBranches];
@@ -110,15 +108,100 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
     return list;
   }, [allAgents, records]);
 
-  // Precompute record counts for each branch to empower user selection
-  const branchRecordCounts = useMemo(() => {
-    const map = new Map<string, number>();
+  // Ultra-fast single-pass branch mapping & record counter (O(Records) single pass instead of O(Branches * Records * Agents))
+  const { branchRecordCounts, recordBranchMap } = useMemo(() => {
+    const counts = new Map<string, number>();
+    const recBranchMap = new Map<string, string>();
+    const lookup = new Map<string, string>(); // cleaned alias -> canonical branch name
+
+    // 1. Register canonical branch names & lookup aliases
     combinedBranches.forEach(b => {
-      const count = records.filter(r => isRecordInBranch(r, b, combinedAgents)).length;
-      map.set(b.name, count);
+      counts.set(b.name, 0);
+
+      const bNameLower = b.name.toLowerCase().trim();
+      lookup.set(bNameLower, b.name);
+
+      const bNorm = normalizeBranchName(b.name);
+      if (bNorm) lookup.set(bNorm, b.name);
+
+      const bClean = bNameLower.replace(/branch|hub|office|central|[_-\s]+/gi, '').trim();
+      if (bClean && bClean.length >= 3) lookup.set(bClean, b.name);
+
+      if (b.region) {
+        const regLower = b.region.toLowerCase().trim();
+        const regClean = regLower.replace(/branch|hub|office|central|[_-\s]+/gi, '').trim();
+        if (regClean && regClean.length >= 3 && !lookup.has(regClean)) {
+          lookup.set(regClean, b.name);
+        }
+      }
     });
-    return map;
-  }, [combinedBranches, records, combinedAgents]);
+
+    // 2. Map agents to their branch
+    const agentToBranch = new Map<string, string>();
+    combinedAgents.forEach(ag => {
+      const agBranchRaw = (ag.branch || '').trim();
+      let canonicalBranch = '';
+      if (agBranchRaw) {
+        canonicalBranch = lookup.get(agBranchRaw.toLowerCase()) || 
+                          lookup.get(normalizeBranchName(agBranchRaw)) || 
+                          lookup.get(agBranchRaw.toLowerCase().replace(/branch|hub|office|central|[_-\s]+/gi, '').trim()) || 
+                          agBranchRaw;
+      }
+      if (canonicalBranch) {
+        if (ag.id) agentToBranch.set(ag.id, canonicalBranch);
+        if (ag.name) {
+          agentToBranch.set(ag.name.toLowerCase().trim(), canonicalBranch);
+          const cleanName = ag.name.toLowerCase().replace(/^agent\s+/i, '').trim();
+          agentToBranch.set(cleanName, canonicalBranch);
+        }
+      }
+    });
+
+    // 3. Classify every customer record accurately in a single O(N) pass
+    records.forEach(r => {
+      const area = (r.areaOfReg || '').trim();
+      let matchedBranch: string | undefined;
+
+      if (area && area.toLowerCase() !== 'unassigned') {
+        const areaLower = area.toLowerCase();
+        matchedBranch = lookup.get(areaLower) || lookup.get(normalizeBranchName(area));
+        if (!matchedBranch) {
+          const areaClean = areaLower.replace(/branch|hub|office|central|[_-\s]+/gi, '').trim();
+          if (areaClean && areaClean.length >= 3) {
+            matchedBranch = lookup.get(areaClean);
+          }
+        }
+      }
+
+      // If area was unassigned or empty, fallback to assigned agent's branch
+      if (!matchedBranch && (r.assignedAgentId || r.assignedAgentName)) {
+        if (r.assignedAgentId && agentToBranch.has(r.assignedAgentId)) {
+          matchedBranch = agentToBranch.get(r.assignedAgentId);
+        } else if (r.assignedAgentName) {
+          const cleanAg = r.assignedAgentName.toLowerCase().replace(/^agent\s+/i, '').trim();
+          matchedBranch = agentToBranch.get(cleanAg) || agentToBranch.get(r.assignedAgentName.toLowerCase().trim());
+        }
+      }
+
+      // If still not matched, fallback to area as branch or HQ Branch
+      if (!matchedBranch) {
+        if (!area || area.toLowerCase().includes('hq') || area.toLowerCase().includes('headquarter')) {
+          matchedBranch = lookup.get('hq branch') || 'HQ Branch';
+        } else {
+          matchedBranch = area.toLowerCase().endsWith('branch') ? area : `${area} Branch`;
+        }
+      }
+
+      recBranchMap.set(r.id, matchedBranch);
+      const curCount = counts.get(matchedBranch) || 0;
+      counts.set(matchedBranch, curCount + 1);
+    });
+
+    return {
+      branchRecordCounts: counts,
+      recordBranchMap: recBranchMap
+    };
+  }, [combinedBranches, combinedAgents, records]);
 
   // Filter mode
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('all-branches');
@@ -129,19 +212,23 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
   // Selected agents (IDs)
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>(() => combinedAgents.map(a => a.id));
 
-  // Sync selected branch names if new branches are dynamically discovered
+  // Sync selected branch names only if new branches are dynamically added, avoiding initial mount re-render
+  const prevBranchesLenRef = useRef(combinedBranches.length);
   useEffect(() => {
-    setSelectedBranchNames(prev => {
-      if (prev.length === 0) return combinedBranches.map(b => b.name);
-      const existing = new Set(prev);
-      const missing = combinedBranches.map(b => b.name).filter(n => !existing.has(n));
-      return missing.length > 0 ? [...prev, ...missing] : prev;
-    });
-  }, [combinedBranches]);
+    if (prevBranchesLenRef.current !== combinedBranches.length) {
+      prevBranchesLenRef.current = combinedBranches.length;
+      setSelectedBranchNames(prev => {
+        const existing = new Set(prev);
+        const missing = combinedBranches.map(b => b.name).filter(n => !existing.has(n));
+        return missing.length > 0 ? [...prev, ...missing] : prev;
+      });
+    }
+  }, [combinedBranches.length]);
 
   // Search filter inside selectors
   const [branchSearch, setBranchSearch] = useState<string>('');
   const [agentSearch, setAgentSearch] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Active view tab inside modal: 'configure' or 'results'
   const [activeTab, setActiveTab] = useState<'configure' | 'results'>('configure');
@@ -191,7 +278,7 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
     return combinedAgents.filter(a => !q || a.name.toLowerCase().includes(q) || a.branch.toLowerCase().includes(q));
   }, [combinedAgents, agentSearch]);
 
-  // Compute records scoped to current selection with robust matching
+  // Compute records scoped to current selection with 100% accurate matching and O(1) membership lookups
   const scopedData = useMemo(() => {
     let targetBranches: BranchInfo[] = [];
     let targetAgents: User[] = [];
@@ -204,11 +291,19 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
       targetRecords = records;
       scopeDescription = `All Regional Branches (${combinedBranches.length} Branches, Entire Network)`;
     } else if (selectionMode === 'multiple-branches') {
-      targetBranches = combinedBranches.filter(b => selectedBranchNames.includes(b.name));
+      const selectedSet = new Set(selectedBranchNames);
+      targetBranches = combinedBranches.filter(b => selectedSet.has(b.name));
       
       // If user cleared all, target all so analysis isn't completely blocked
       if (targetBranches.length === 0 && selectedBranchNames.length === 0 && combinedBranches.length > 0) {
         targetBranches = combinedBranches;
+        targetRecords = records;
+      } else {
+        // Instant O(1) membership check matching the exact branch counts shown on each branch
+        targetRecords = records.filter(r => {
+          const bName = recordBranchMap.get(r.id);
+          return bName ? selectedSet.has(bName) : false;
+        });
       }
 
       // Filter agents belonging to target branches
@@ -216,26 +311,9 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
         const agBranchNorm = normalizeBranchName(a.branch);
         return targetBranches.some(b => {
           const bNorm = normalizeBranchName(b.name);
-          return agBranchNorm === bNorm || agBranchNorm.includes(bNorm) || bNorm.includes(agBranchNorm);
+          return agBranchNorm === bNorm;
         });
       });
-
-      // Filter records matching target branches using robust multi-dimensional matching
-      targetRecords = records.filter(r => 
-        targetBranches.some(b => isRecordInBranch(r, b, combinedAgents))
-      );
-
-      // Fallback: if records exist in portal but strict matching returned 0, check substring area match
-      if (targetRecords.length === 0 && targetBranches.length > 0 && records.length > 0) {
-        const branchKeywords = targetBranches.map(b => normalizeBranchName(b.name)).filter(Boolean);
-        const broadRecords = records.filter(r => {
-          const rNorm = normalizeBranchName(r.areaOfReg);
-          return branchKeywords.some(kw => rNorm && (rNorm.includes(kw) || kw.includes(rNorm)));
-        });
-        if (broadRecords.length > 0) {
-          targetRecords = broadRecords;
-        }
-      }
 
       const branchNamesList = targetBranches.map(b => b.name);
       const displayStr = branchNamesList.length <= 2 
@@ -262,15 +340,16 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
       records: targetRecords,
       scopeDescription
     };
-  }, [selectionMode, selectedBranchNames, selectedAgentIds, combinedBranches, combinedAgents, records]);
+  }, [selectionMode, selectedBranchNames, selectedAgentIds, combinedBranches, combinedAgents, records, recordBranchMap]);
 
   // Handle execution of Gemini AI Analysis
   const handleRunAnalysis = async () => {
+    setErrorMessage(null);
     if (scopedData.records.length === 0) {
       if (records.length > 0) {
-        alert(`No customer records found matching the selected branch(es) (${scopedData.branches.map(b => b.name).join(', ') || 'None'}). There are ${records.length} records available in the portal — please select a branch with active leads or click 'Select All'.`);
+        setErrorMessage(`No customer records found matching the selected branch(es) (${scopedData.branches.map(b => b.name).join(', ') || 'None'}). There are ${records.length} records available in the portal — please select a branch with active leads or select All Branches.`);
       } else {
-        alert('The portal does not contain any customer records to analyze yet. Please upload an Excel sheet first.');
+        setErrorMessage('The portal does not contain any customer records to analyze yet. Please upload an Excel sheet first.');
       }
       return;
     }
@@ -285,8 +364,18 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
         scopeName: scopedData.scopeDescription
       });
       setAnalysisResult(result);
-    } catch (err) {
-      console.error('[AI Analysis Error]', err);
+    } catch (err: any) {
+      console.warn('[AI Analysis Error] Falling back to heuristic analysis:', err);
+      try {
+        const fallback = generateOfflineHeuristicAnalysis(
+          scopedData.records,
+          scopedData.branches,
+          scopedData.agents
+        );
+        setAnalysisResult(fallback);
+      } catch (fallbackErr) {
+        setErrorMessage('Failed to generate analysis. Please try selecting a different scope or re-running.');
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -346,6 +435,9 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
     setSelectedAgentIds([]);
   };
 
+  // Guard after all hooks so React rules of hooks are strictly adhered to
+  if (!isOpen || (currentUser.role !== 'HQ_ADMIN' && currentUser.role !== 'SUPERVISOR')) return null;
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-3 overflow-y-auto">
       <div 
@@ -401,30 +493,17 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
 
             <button
               id="tab-ai-analysis-insights"
-              onClick={() => {
-                if (analysisResult || isAnalyzing) {
-                  setActiveTab('results');
-                }
-              }}
-              disabled={!analysisResult && !isAnalyzing}
-              title={
-                !analysisResult && !isAnalyzing
-                  ? "Tab locked: Click 'Run Analysis & Preview' to generate insights first"
-                  : 'View AI Analysis & Insights'
-              }
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                !analysisResult && !isAnalyzing
-                  ? 'opacity-45 text-slate-400 cursor-not-allowed bg-slate-200/50 border border-dashed border-slate-300 select-none'
-                  : activeTab === 'results'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-300 cursor-pointer'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 cursor-pointer'
+              onClick={() => setActiveTab('results')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'results'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-300'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
               }`}
+              title="View AI Analysis & Insights"
             >
-              <TrendingUp className={`w-3.5 h-3.5 ${!analysisResult && !isAnalyzing ? 'text-slate-400' : 'text-red-600'}`} />
+              <TrendingUp className="w-3.5 h-3.5 text-red-600" />
               <span>2. AI Analysis & Insights</span>
-              {!analysisResult && !isAnalyzing ? (
-                <Lock className="w-3 h-3 text-slate-400 shrink-0 ml-0.5" />
-              ) : analysisResult ? (
+              {analysisResult ? (
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               ) : null}
             </button>
@@ -433,6 +512,22 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
 
         {/* Modal Main Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50">
+          {errorMessage && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs flex items-start justify-between gap-2 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setErrorMessage(null)}
+                className="text-red-500 hover:text-red-700 text-xs font-bold shrink-0 ml-2 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {activeTab === 'configure' ? (
             /* ======================================================== */
             /* TAB 1: SELECTION OPTIONS (All Branches, Multiple Branches, All Agents, Multiple Agents) */
@@ -1513,7 +1608,37 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                     </div>
                   )}
                 </div>
-              ) : null}
+              ) : (
+                <div className="py-16 text-center max-w-md mx-auto space-y-4">
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto shadow-xs">
+                    <Sparkles className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">No Analysis Generated Yet</h4>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Select your target branch or calling agent roster in Step 1, then run analysis to synthesize real customer intelligence.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('configure')}
+                      className="px-3.5 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                    >
+                      ← Back to Scope Selection
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRunAnalysis}
+                      disabled={scopedData.records.length === 0}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Run Analysis Now ({scopedData.records.length})</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

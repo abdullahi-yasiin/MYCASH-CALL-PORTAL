@@ -216,12 +216,12 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </button>
 
-            {/* AI Intelligence & Feedback Analytics Button (HQ ADMIN ONLY) */}
-            {onOpenAiIntelligence && isHQAdmin && (
+            {/* AI Intelligence & Feedback Analytics Button (Admin & Supervisor) */}
+            {onOpenAiIntelligence && (isHQAdmin || currentUser.role === 'SUPERVISOR') && (
               <button
                 id="btn-header-ai-intelligence"
                 onClick={onOpenAiIntelligence}
-                className="hidden sm:flex items-center gap-1 sm:gap-1.5 px-2 py-1 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 active:scale-95 text-white text-[9px] sm:text-[11px] font-bold rounded-lg sm:rounded-xl shadow-xs transition-all cursor-pointer border border-red-500/40 shrink-0"
+                className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 active:scale-95 text-white text-[9px] sm:text-[11px] font-bold rounded-lg sm:rounded-xl shadow-xs transition-all cursor-pointer border border-red-500/40 shrink-0"
                 title="Open AI Intelligence & Feedback Analytics with Af-Soomaali comprehension, charts, and downloadable PDF report"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse shrink-0" />

@@ -417,6 +417,19 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             <UserPlus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             <span>Add Member</span>
           </button>
+
+          {/* AI Intelligence & Feedback Analytics Button */}
+          {onOpenAiIntelligence && (
+            <button
+              id="btn-supervisor-ai-intelligence"
+              onClick={onOpenAiIntelligence}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-3 sm:py-2 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-red-500/50 shadow-xs cursor-pointer active:scale-95"
+              title="Launch AI Intelligence & Feedback Analytics (Somali Language & PDF Report)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse shrink-0" />
+              <span className="truncate">AI Intelligence</span>
+            </button>
+          )}
         </div>
       </div>
 

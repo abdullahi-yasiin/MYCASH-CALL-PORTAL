@@ -71,11 +71,17 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
   // Filter records belonging strictly to this specific agent's uploaded Excel roster (excluding supervisor-assigned records)
   const agentRecords = useMemo(() => {
     if (!agent) return [];
-    return records.filter(
-      r => (r.assignedAgentId === agent.id || 
-      (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase())) &&
-      !isRecordAssignedBySupervisor(r)
-    );
+    const agNameClean = agent.name.toLowerCase().replace(/^agent\s+/i, '').trim();
+    const agFirstName = agNameClean.split(' ')[0];
+    return records.filter(r => {
+      if (isRecordAssignedBySupervisor(r)) return false;
+      if (r.assignedAgentId === agent.id) return true;
+      if (!r.assignedAgentName) return false;
+      const rNameClean = r.assignedAgentName.toLowerCase().replace(/^agent\s+/i, '').trim();
+      if (rNameClean === agNameClean || r.assignedAgentName.trim().toLowerCase() === agent.name.trim().toLowerCase()) return true;
+      if (agFirstName.length >= 3 && (rNameClean === agFirstName || rNameClean.startsWith(agFirstName))) return true;
+      return false;
+    });
   }, [records, agent]);
 
   // Available target agents for reassignment

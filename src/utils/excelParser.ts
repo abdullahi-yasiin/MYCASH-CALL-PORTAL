@@ -40,8 +40,8 @@ export const EXPECTED_HEADERS = [
 
 export function validatePhoneNumber(phone: string): boolean {
   if (!phone) return false;
-  // Remove spaces, dashes, parentheses, plus
-  const cleaned = phone.replace(/[\s\-\(\)\+]/g, '');
+  // Remove spaces, dashes, parentheses, plus, and dots from Excel floating point formats
+  const cleaned = phone.replace(/[\s\-\(\)\+\.]/g, '').replace(/e\+\d+/i, '');
   // Phone should have between 7 and 15 digits
   return /^\d{7,15}$/.test(cleaned);
 }
@@ -170,8 +170,20 @@ export async function parseExcelOrCsvFile(file: File): Promise<ParseResult> {
     const errors: string[] = [];
 
     const customerName = nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '';
-    const phoneNumber = phoneIdx !== -1 ? String(row[phoneIdx] || '').trim() : '';
-    const areaOfReg = areaIdx !== -1 ? String(row[areaIdx] || '').trim() : '';
+    
+    // Parse phone number safely preserving digits and avoiding scientific notation
+    let phoneNumber = '';
+    if (phoneIdx !== -1 && row[phoneIdx] !== undefined && row[phoneIdx] !== null) {
+      const rawPhone = row[phoneIdx];
+      if (typeof rawPhone === 'number') {
+        phoneNumber = Math.round(rawPhone).toLocaleString('fullwide', { useGrouping: false });
+      } else {
+        phoneNumber = String(rawPhone).trim().replace(/\.0+$/, '');
+      }
+    }
+
+    // Area of registration with graceful fallback to Headquarters so rows are not dropped
+    const areaOfReg = (areaIdx !== -1 ? String(row[areaIdx] || '').trim() : '') || 'Headquarters';
     let callDate = callDateIdx !== -1 ? String(row[callDateIdx] || '').trim() : '';
     let statusStr = statusIdx !== -1 ? String(row[statusIdx] || '').trim() : '';
     
@@ -225,9 +237,6 @@ export async function parseExcelOrCsvFile(file: File): Promise<ParseResult> {
       errors.push('Phone Number is missing');
     } else if (!validatePhoneNumber(phoneNumber)) {
       errors.push(`Invalid phone format "${phoneNumber}". Must be 7-15 digits.`);
-    }
-    if (!areaOfReg) {
-      errors.push('Area of Reg. / Branch is missing');
     }
 
     const status = normalizeStatus(statusStr, appointment);

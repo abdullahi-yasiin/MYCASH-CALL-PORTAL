@@ -667,7 +667,7 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                   AI Intelligence & Feedback Analytics
                 </h2>
                 <span className="hidden sm:inline-flex px-1.5 py-0.5 rounded-sm text-[9px] sm:text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                  Powered by Gemini AI
+                  Powered by Gemini 3.8 AI
                 </span>
               </div>
               <p className="text-[10px] sm:text-xs text-slate-300 mt-0.5 truncate sm:whitespace-normal">
@@ -1237,32 +1237,29 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                 <div className="py-6 sm:py-10 max-w-3xl mx-auto space-y-6">
                   {/* Hero Gemini Astral Orb & Reasoning Card */}
                   <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-xs relative overflow-hidden text-center">
-                    {/* Ambient Aurora Glow */}
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-44 bg-gradient-to-r from-blue-500/15 via-indigo-500/20 to-rose-500/15 rounded-full blur-3xl pointer-events-none animate-gemini-pulse" />
+                    {/* Ambient Glow */}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-80 h-32 bg-gradient-to-r from-red-500/5 via-rose-500/10 to-blue-500/5 rounded-full blur-2xl pointer-events-none" />
 
-                    {/* Astral Gemini Orb */}
-                    <div className="relative mx-auto w-20 h-20 sm:w-24 sm:h-24 mb-5 flex items-center justify-center">
-                      {/* Outer pulsing radial glow */}
-                      <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-blue-500 via-indigo-500 to-rose-400 blur-md opacity-60 animate-gemini-pulse" />
+                    {/* Modern Simple AI Loading Beacon */}
+                    <div className="relative mx-auto w-16 h-16 sm:w-18 sm:h-18 mb-4 flex items-center justify-center">
+                      {/* Subtle ambient breathing glow */}
+                      <div className="absolute inset-0 rounded-full bg-red-500/10 blur-xl animate-pulse" />
                       
-                      {/* Smooth rotating multicolor gradient halo */}
-                      <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-blue-600 via-indigo-600 via-violet-500 to-rose-500 p-[2.5px] animate-gemini-spin shadow-xl">
-                        <div className="w-full h-full bg-slate-950 rounded-[21px]" />
-                      </div>
+                      {/* Modern minimalist dual-ring spinner */}
+                      <div className="absolute inset-0 rounded-full border-2 border-slate-100 border-t-red-600 border-r-red-400 animate-spin" />
                       
-                      {/* Inner crystal core with breathing Gemini star */}
-                      <div className="relative w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 rounded-[20px] flex items-center justify-center border border-white/10 shadow-inner overflow-hidden">
-                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-500/30 via-transparent to-transparent" />
-                        <Sparkles className="w-8 h-8 sm:w-9 sm:h-9 text-amber-200 animate-pulse drop-shadow-[0_0_12px_rgba(129,140,248,0.7)]" />
+                      {/* Clean center badge */}
+                      <div className="relative w-11 h-11 sm:w-12 sm:h-12 bg-white rounded-full shadow-xs border border-slate-100 flex items-center justify-center">
+                        <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-red-600 animate-pulse" />
                       </div>
                     </div>
 
                     {/* Branded Status Header */}
                     <div className="relative z-10 space-y-2">
                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] font-semibold tracking-wide shadow-xs border border-slate-800">
-                        <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                        <span className="bg-gradient-to-r from-blue-300 via-indigo-200 to-amber-200 bg-clip-text text-transparent font-bold">
-                          Gemini 2.5 Flash Engine
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                        <span className="font-bold text-white">
+                          Gemini 3.8 Flash Engine
                         </span>
                         <span className="text-slate-400 font-normal">· Real-Time Reasoning</span>
                       </div>
@@ -1279,8 +1276,8 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                       </p>
 
                       {/* Dynamic Stage Description Bar */}
-                      <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-center gap-2 text-xs font-semibold text-indigo-700">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600 shrink-0" />
+                      <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-center gap-2 text-xs font-semibold text-slate-700">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600 shrink-0" />
                         <span>
                           {analysisStage === 0 && 'Reading call logs, verification notes, and scheduled appointments...'}
                           {analysisStage === 1 && 'Clustering customer pain points, fees, KYC, and agent behavior feedback...'}
@@ -1289,11 +1286,11 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                         </span>
                       </div>
 
-                      {/* Smooth Shimmer Progress Track */}
+                      {/* Smooth Progress Track */}
                       <div className="mt-3 max-w-md mx-auto">
                         <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
                           <div 
-                            className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-rose-500 transition-all duration-700 ease-out relative"
+                            className="h-full bg-gradient-to-r from-red-600 to-rose-500 transition-all duration-700 ease-out relative"
                             style={{ width: `${(analysisStage + 1) * 25}%` }}
                           >
                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-gemini-shimmer" />
@@ -1466,80 +1463,100 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Visual Subtabs */}
-                  <div className="flex items-center gap-1.5 border-b border-slate-200 overflow-x-auto pb-2">
+                  {/* Modern Segmented Subtabs Bar */}
+                  <div className="bg-slate-100/80 p-1 rounded-xl border border-slate-200/80 flex items-center gap-1 overflow-x-auto scrollbar-none">
                     <button
                       onClick={() => setResultsSection('overview')}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                         resultsSection === 'overview'
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                       }`}
                     >
-                      Executive Summary & Sentiment
+                      Executive Overview
                     </button>
 
                     <button
                       onClick={() => setResultsSection('complaints')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                         resultsSection === 'complaints'
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                       }`}
                     >
-                      Most Frequent Complaints ({analysisResult.topComplaints.length})
+                      <span>Frequent Complaints</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        resultsSection === 'complaints' ? 'bg-red-100 text-red-700' : 'bg-slate-200/70 text-slate-600'
+                      }`}>
+                        {analysisResult.topComplaints.length}
+                      </span>
                     </button>
 
                     <button
                       onClick={() => setResultsSection('appreciations-rejections')}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                         resultsSection === 'appreciations-rejections'
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                       }`}
                     >
-                      Appreciations & Rejections
+                      Success & Rejections
                     </button>
 
                     <button
                       onClick={() => setResultsSection('appointments')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                         resultsSection === 'appointments'
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                       }`}
                     >
-                      Appointments & Callbacks
+                      <span>Callbacks</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        resultsSection === 'appointments' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200/70 text-slate-600'
+                      }`}>
+                        {analysisResult.appointmentInsights.totalAppointments}
+                      </span>
                     </button>
 
                     <button
                       onClick={() => setResultsSection('branches')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                         resultsSection === 'branches'
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                       }`}
                     >
-                      Branch Performance ({analysisResult.branchPerformances.length})
+                      <span>Branch Dynamics</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        resultsSection === 'branches' ? 'bg-slate-200 text-slate-800' : 'bg-slate-200/70 text-slate-600'
+                      }`}>
+                        {analysisResult.branchPerformances.length}
+                      </span>
                     </button>
 
                     <button
                       onClick={() => setResultsSection('agents')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                         resultsSection === 'agents'
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                       }`}
                     >
-                      Agent Coaching & Objections ({analysisResult.agentSummaries.length})
+                      <span>Agent Coaching</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        resultsSection === 'agents' ? 'bg-slate-200 text-slate-800' : 'bg-slate-200/70 text-slate-600'
+                      }`}>
+                        {analysisResult.agentSummaries.length}
+                      </span>
                     </button>
 
                     <button
                       onClick={() => setResultsSection('roadmap')}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                         resultsSection === 'roadmap'
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                       }`}
                     >
                       Strategic Roadmap
@@ -1549,58 +1566,156 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                   {/* Subtab 1: Executive Summary & Sentiment */}
                   {resultsSection === 'overview' && (
                     <div className="space-y-4">
-                      {/* 4 Feedback Distribution Cards */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="bg-red-50 border border-red-200 rounded-xl p-3.5">
-                          <div className="flex items-center justify-between text-red-800 text-xs font-bold">
-                            <span>Customer Complaints</span>
-                            <ShieldAlert className="w-4 h-4 text-red-600" />
+                      {/* 6 Executive KPI Overview Cards */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                        {/* 1. Complaints Friction */}
+                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
+                          <div className="h-0.5 w-full bg-red-600 absolute top-0 left-0" />
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+                                Friction
+                              </span>
+                              <span className="text-[10px] text-red-600 font-bold">Issues</span>
+                            </div>
+                            <div className="text-xl font-black text-red-600 mt-2">
+                              {analysisResult.feedbackBreakdown.complaintsPercent}%
+                            </div>
                           </div>
-                          <div className="text-2xl font-black text-red-900 mt-2">
-                            {analysisResult.feedbackBreakdown.complaintsPercent}%
+                          <div className="mt-2">
+                            <p className="text-[10px] text-slate-500 truncate">
+                              Pricing, tariffs & friction
+                            </p>
+                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
+                              <div className="h-full bg-red-600 rounded-full" style={{ width: `${Math.min(100, Math.max(8, analysisResult.feedbackBreakdown.complaintsPercent))}%` }} />
+                            </div>
                           </div>
-                          <p className="text-[11px] text-red-700 mt-1">
-                            Pricing, network, limit complaints
-                          </p>
                         </div>
 
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5">
-                          <div className="flex items-center justify-between text-emerald-800 text-xs font-bold">
-                            <span>Appreciations</span>
-                            <ThumbsUp className="w-4 h-4 text-emerald-600" />
+                        {/* 2. Success Rate */}
+                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
+                          <div className="h-0.5 w-full bg-emerald-600 absolute top-0 left-0" />
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                                Success
+                              </span>
+                              <span className="text-[10px] text-emerald-600 font-bold">Praise</span>
+                            </div>
+                            <div className="text-xl font-black text-emerald-600 mt-2">
+                              {analysisResult.feedbackBreakdown.appreciationsPercent}%
+                            </div>
                           </div>
-                          <div className="text-2xl font-black text-emerald-900 mt-2">
-                            {analysisResult.feedbackBreakdown.appreciationsPercent}%
+                          <div className="mt-2">
+                            <p className="text-[10px] text-slate-500 truncate">
+                              Speed, service & conversions
+                            </p>
+                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
+                              <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.min(100, Math.max(8, analysisResult.feedbackBreakdown.appreciationsPercent))}%` }} />
+                            </div>
                           </div>
-                          <p className="text-[11px] text-emerald-700 mt-1">
-                            Praise for speed and service
-                          </p>
                         </div>
 
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5">
-                          <div className="flex items-center justify-between text-amber-800 text-xs font-bold">
-                            <span>Call Rejections</span>
-                            <ThumbsDown className="w-4 h-4 text-amber-600" />
+                        {/* 3. Rejections */}
+                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
+                          <div className="h-0.5 w-full bg-amber-500 absolute top-0 left-0" />
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                Objections
+                              </span>
+                              <span className="text-[10px] text-amber-600 font-bold">Declined</span>
+                            </div>
+                            <div className="text-xl font-black text-amber-600 mt-2">
+                              {analysisResult.feedbackBreakdown.rejectionsPercent}%
+                            </div>
                           </div>
-                          <div className="text-2xl font-black text-amber-900 mt-2">
-                            {analysisResult.feedbackBreakdown.rejectionsPercent}%
+                          <div className="mt-2">
+                            <p className="text-[10px] text-slate-500 truncate">
+                              Competitor loyalty & timing
+                            </p>
+                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
+                              <div className="h-full bg-amber-500 rounded-full" style={{ width: `${Math.min(100, Math.max(8, analysisResult.feedbackBreakdown.rejectionsPercent))}%` }} />
+                            </div>
                           </div>
-                          <p className="text-[11px] text-amber-700 mt-1">
-                            Sales objections and competitor loyalty
-                          </p>
                         </div>
 
-                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5">
-                          <div className="flex items-center justify-between text-blue-800 text-xs font-bold">
-                            <span>Follow-ups & Appointments</span>
-                            <Calendar className="w-4 h-4 text-blue-600" />
+                        {/* 4. Appointments & Callbacks */}
+                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
+                          <div className="h-0.5 w-full bg-blue-600 absolute top-0 left-0" />
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                                Callbacks
+                              </span>
+                              <span className="text-[10px] text-blue-600 font-bold">Bookings</span>
+                            </div>
+                            <div className="text-xl font-black text-blue-600 mt-2">
+                              {analysisResult.feedbackBreakdown.inquiriesAndFollowupsPercent}%
+                            </div>
                           </div>
-                          <div className="text-2xl font-black text-blue-900 mt-2">
-                            {analysisResult.feedbackBreakdown.inquiriesAndFollowupsPercent}%
+                          <div className="mt-2">
+                            <p className="text-[10px] text-slate-500 truncate">
+                              {analysisResult.appointmentInsights.totalAppointments} Bookings scheduled
+                            </p>
+                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
+                              <div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.min(100, Math.max(8, analysisResult.feedbackBreakdown.inquiriesAndFollowupsPercent))}%` }} />
+                            </div>
                           </div>
-                          <p className="text-[11px] text-blue-700 mt-1">
-                            Callbacks and inquiries requested
-                          </p>
+                        </div>
+
+                        {/* 5. Records Audited */}
+                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
+                          <div className="h-0.5 w-full bg-indigo-600 absolute top-0 left-0" />
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                                Audited
+                              </span>
+                              <span className="text-[10px] text-indigo-600 font-bold">Leads</span>
+                            </div>
+                            <div className="text-xl font-black text-slate-900 mt-2">
+                              {analysisResult.totalRecordsAnalyzed.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            <p className="text-[10px] text-slate-500 truncate">
+                              Customer records processed
+                            </p>
+                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
+                              <div className="h-full bg-indigo-600 rounded-full w-full" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 6. Active Coverage */}
+                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
+                          <div className="h-0.5 w-full bg-slate-700 absolute top-0 left-0" />
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-700" />
+                                Coverage
+                              </span>
+                              <span className="text-[10px] text-slate-700 font-bold">Network</span>
+                            </div>
+                            <div className="text-xl font-black text-slate-900 mt-2">
+                              {analysisResult.branchesCovered.length} Hubs
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            <p className="text-[10px] text-slate-500 truncate">
+                              {analysisResult.agentsCovered.length} Calling agents active
+                            </p>
+                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
+                              <div className="h-full bg-slate-700 rounded-full w-full" />
+                            </div>
+                          </div>
                         </div>
                       </div>
 
@@ -1654,9 +1769,19 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                                   <h5 className="text-sm font-bold text-slate-900 mt-1">
                                     {item.issue}
                                   </h5>
+                                  {item.affectedBranches && item.affectedBranches.length > 0 && (
+                                    <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Branches Origin:</span>
+                                      {item.affectedBranches.map((br, bIdx) => (
+                                        <span key={bIdx} className="text-[10px] font-semibold bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded-md">
+                                          {br}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
 
-                                <div className="text-right">
+                                <div className="text-right shrink-0">
                                   <div className="text-lg font-black text-red-600">{item.percentage}%</div>
                                   <div className="text-[10px] text-slate-500 font-medium">{item.count} Customer Mentions</div>
                                 </div>
@@ -1749,8 +1874,20 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                           {analysisResult.rejectionAnalysis.map((rej, idx) => (
                             <div key={idx} className="p-4 rounded-xl border border-slate-200 bg-white space-y-2">
                               <div className="flex items-center justify-between">
-                                <h5 className="font-bold text-xs text-slate-900">{rej.reason}</h5>
-                                <span className="text-xs font-black text-amber-600">{rej.percentage}% of Rejections</span>
+                                <div>
+                                  <h5 className="font-bold text-xs text-slate-900">{rej.reason}</h5>
+                                  {rej.affectedBranches && rej.affectedBranches.length > 0 && (
+                                    <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Affected Hubs:</span>
+                                      {rej.affectedBranches.map((br, bIdx) => (
+                                        <span key={bIdx} className="text-[10px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded">
+                                          {br}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="text-xs font-black text-amber-600 shrink-0">{rej.percentage}% of Rejections</span>
                               </div>
                               <p className="text-xs text-slate-600">
                                 <strong className="text-slate-800">Customer Behavior:</strong> {rej.customerExplanation}
@@ -1935,11 +2072,16 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                               <div className="flex items-center justify-between">
                                 <div>
                                   <h5 className="font-bold text-sm text-slate-900">{ag.agentName}</h5>
-                                  <div className="text-[11px] text-slate-500">{ag.branch} Hub</div>
+                                  <div className="text-[11px] text-slate-500 font-medium">{ag.branch} Hub</div>
                                 </div>
                                 <div className="text-right">
-                                  <span className="text-sm font-black text-blue-600">{ag.conversionRate}%</span>
-                                  <div className="text-[10px] text-slate-400">({ag.conversions} closed of {ag.callsMade})</div>
+                                  <div className="text-sm font-black text-blue-600">{ag.conversionRate}% Conv.</div>
+                                  <div className="text-[10px] text-slate-500">
+                                    Assigned: <strong className="text-slate-800">{ag.totalAssigned}</strong> | Calls: <strong className="text-slate-800">{ag.callsMade}</strong> | Closed: <strong className="text-emerald-700">{ag.conversions}</strong>
+                                    {typeof ag.rejections === 'number' && (
+                                      <span> | Declined: <strong className="text-orange-700">{ag.rejections}</strong></span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
 
@@ -2086,12 +2228,12 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                 {isExportingPdf ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Generating PDF Report...</span>
+                    <span>Generating Report...</span>
                   </>
                 ) : (
                   <>
                     <Download className="w-3.5 h-3.5" />
-                    <span>Download PDF Report</span>
+                    <span>Download Report</span>
                   </>
                 )}
               </button>

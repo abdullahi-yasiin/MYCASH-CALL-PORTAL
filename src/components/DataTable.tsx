@@ -1076,10 +1076,22 @@ export const DataTable: React.FC<DataTableProps> = ({
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-start gap-1 text-slate-500 text-xs leading-relaxed max-h-28 overflow-y-auto custom-scrollbar whitespace-pre-wrap break-words">
-                          <Lock className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                          <span className="italic">{record.supervisorNote || 'Locked'}</span>
-                        </div>
+                        record.supervisorNote ? (
+                          <div className="bg-amber-50/90 border border-amber-200/90 rounded p-1.5 text-xs leading-relaxed max-h-28 overflow-y-auto custom-scrollbar">
+                            <span className="text-[9px] font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1 mb-0.5">
+                              <AlertCircle className="w-2.5 h-2.5 text-amber-600 shrink-0 inline" />
+                              Supervisor Directive
+                            </span>
+                            <span className="text-slate-900 font-medium block whitespace-pre-wrap break-words">
+                              {record.supervisorNote}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-slate-400 text-xs italic">
+                            <Lock className="w-3 h-3 text-slate-300 shrink-0" />
+                            <span>No directive</span>
+                          </div>
+                        )
                       )}
                     </td>
 

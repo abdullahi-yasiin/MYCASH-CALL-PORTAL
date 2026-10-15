@@ -10,6 +10,7 @@ import {
   Calendar, 
   Clock, 
   MessageSquare,
+  MessageSquarePlus,
   Lock,
   User as UserIcon,
   CheckCircle2,
@@ -18,7 +19,9 @@ import {
   AlertCircle,
   Trash2,
   UserCheck,
-  ArrowUpDown
+  ArrowUpDown,
+  Edit3,
+  Save
 } from 'lucide-react';
 import { User, CustomerRecord, CallStatus, DeleteExcelTarget, isRecordAssignedBySupervisor } from '../types';
 import { exportToExcel } from '../utils/exportEngine';
@@ -53,12 +56,58 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
   const [targetAgentId, setTargetAgentId] = useState<string>('');
   const [directiveNote, setDirectiveNote] = useState<string>('');
 
+  // Supervisor Note Edit Modal state
+  const [noteModalRecord, setNoteModalRecord] = useState<CustomerRecord | null>(null);
+  const [tempSupervisorNote, setTempSupervisorNote] = useState<string>('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const canEditSupervisorNote = currentUser.role === 'SUPERVISOR' || currentUser.role === 'HQ_ADMIN';
+
+  // Open note modal for a record
+  const handleOpenNoteModal = (record: CustomerRecord) => {
+    setNoteModalRecord(record);
+    setTempSupervisorNote(record.supervisorNote || '');
+  };
+
+  // Save supervisor note and propagate to record state & database
+  const handleSaveSupervisorNote = () => {
+    if (!noteModalRecord) return;
+    const trimmed = tempSupervisorNote.trim();
+    const updatedRecord: CustomerRecord = {
+      ...noteModalRecord,
+      supervisorNote: trimmed,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (onUpdateRecord) {
+      onUpdateRecord(
+        updatedRecord,
+        trimmed
+          ? `Supervisor ${currentUser.name} added directive note for ${noteModalRecord.customerName}: "${trimmed}"`
+          : `Supervisor ${currentUser.name} cleared directive note for ${noteModalRecord.customerName}`
+      );
+    }
+
+    setToastMessage(
+      trimmed 
+        ? `Directive note saved for ${noteModalRecord.customerName}! Agent ${agent?.name || ''} can now view it.`
+        : `Directive note cleared for ${noteModalRecord.customerName}.`
+    );
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000);
+
+    setNoteModalRecord(null);
+  };
+
   // Close on Escape key
   React.useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (reassigningRecord) {
+        if (noteModalRecord) {
+          setNoteModalRecord(null);
+        } else if (reassigningRecord) {
           setReassigningRecord(null);
         } else {
           onClose();
@@ -67,7 +116,7 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, reassigningRecord]);
+  }, [isOpen, onClose, reassigningRecord, noteModalRecord]);
 
   // Filter records belonging strictly to this specific agent's uploaded Excel roster (excluding supervisor-assigned records)
   const agentRecords = useMemo(() => {
@@ -313,6 +362,22 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
           </div>
         </div>
 
+        {/* In-Modal Notification Banner */}
+        {toastMessage && (
+          <div className="bg-emerald-600 text-white px-3 sm:px-5 py-2 text-xs font-semibold flex items-center justify-between shadow-xs animate-in slide-in-from-top-2 duration-150 shrink-0 border-b border-emerald-700">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{toastMessage}</span>
+            </div>
+            <button
+              onClick={() => setToastMessage(null)}
+              className="text-emerald-200 hover:text-white p-0.5 rounded cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Quick KPI Strip */}
         <div className="bg-slate-50 border-b border-slate-200 px-2.5 sm:px-5 py-1.5 sm:py-2 shrink-0 grid grid-cols-4 sm:grid-cols-4 md:grid-cols-7 gap-1 sm:gap-1.5 text-center">
           <div className="bg-white p-1 sm:p-1.5 rounded-lg border border-slate-200">
@@ -458,13 +523,64 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
                     <td className="py-2 px-2.5 max-w-xs text-slate-700 text-[11px] whitespace-pre-wrap break-words leading-relaxed">
                       {r.feedbackNote || <span className="text-slate-400 italic">No notes logged</span>}
                     </td>
-                    <td className="py-2 px-2.5 max-w-xs text-[11px] whitespace-pre-wrap break-words leading-relaxed">
-                      {r.supervisorNote ? (
-                        <span className="text-red-900 font-medium block">
-                          {r.supervisorNote}
-                        </span>
+                    {/* Supervisor Note Column (td:nth-of-type(8)) */}
+                    <td className="py-1.5 px-2 max-w-xs text-[11px] align-top">
+                      {canEditSupervisorNote ? (
+                        r.supervisorNote && r.supervisorNote.trim() !== '' ? (
+                          <div className="group relative bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/90 rounded-md p-1.5 transition-all shadow-2xs">
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <span className="text-[8.5px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                                <AlertCircle className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                Supervisor Directive
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenNoteModal(r);
+                                }}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-white hover:bg-amber-600 text-amber-800 hover:text-white border border-amber-300 rounded text-[9px] font-bold shadow-2xs transition-all cursor-pointer"
+                                title="Edit supervisor directive"
+                              >
+                                <Edit3 className="w-2.5 h-2.5" />
+                                <span>Edit</span>
+                              </button>
+                            </div>
+                            <p className="text-slate-900 font-medium text-[10.5px] whitespace-pre-wrap break-words leading-snug">
+                              {r.supervisorNote}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 py-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenNoteModal(r);
+                              }}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-0.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 hover:text-amber-900 border border-amber-300 rounded text-[9px] sm:text-[9.5px] font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer whitespace-nowrap group shrink-0"
+                              title="Add supervisor note or directive for the agent"
+                            >
+                              <MessageSquarePlus className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-600 group-hover:scale-105 transition-transform shrink-0" />
+                              <span className="hidden sm:inline">+ Add Note</span>
+                              <span className="sm:hidden">+ Note</span>
+                            </button>
+                            <span className="text-slate-400 italic text-[9.5px] hidden xl:inline">No directive</span>
+                          </div>
+                        )
                       ) : (
-                        <span className="text-slate-400 italic">No directive</span>
+                        r.supervisorNote ? (
+                          <div className="bg-amber-50/80 border border-amber-200/80 rounded-md p-1.5">
+                            <span className="text-[8.5px] font-bold uppercase tracking-wider text-amber-800 block mb-0.5">
+                              Supervisor Directive
+                            </span>
+                            <p className="text-slate-900 font-medium text-[10.5px] whitespace-pre-wrap break-words">
+                              {r.supervisorNote}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic text-[10.5px]">No directive</span>
+                        )
                       )}
                     </td>
                     {(currentUser.role === 'SUPERVISOR' || currentUser.role === 'HQ_ADMIN') && (
@@ -623,6 +739,147 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
                 Confirm Assignment
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Supervisor Note Modal (Add/Edit Note for Agent to See) */}
+      {noteModalRecord && (
+        <div 
+          className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setNoteModalRecord(null);
+            }
+          }}
+        >
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-5 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150 space-y-4">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-red-50 text-red-600 border border-red-200/60">
+                  <MessageSquarePlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                    {noteModalRecord.supervisorNote ? 'Edit Supervisor Directive' : 'Add Supervisor Directive Note'}
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Directives appear immediately on <strong className="text-slate-700">{agent?.name}'s</strong> calling screen & roster.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNoteModalRecord(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Target Customer Context Card */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                    {noteModalRecord.customerName}
+                  </span>
+                  <span className={`px-1.5 py-0.2 rounded-xs text-[8.5px] font-bold border ${getStatusBadgeStyle(noteModalRecord.status)}`}>
+                    {noteModalRecord.status}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 font-mono text-[11px] text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                  <Phone className="w-3 h-3 text-slate-400" />
+                  <span>{noteModalRecord.phoneNumber}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 pt-1 border-t border-slate-200/60">
+                <span>Branch: <strong className="text-slate-800">{noteModalRecord.areaOfReg}</strong></span>
+                <span>Assigned Agent: <strong className="text-blue-700">{agent?.name}</strong></span>
+                {noteModalRecord.callDate && (
+                  <span>Last Call: <strong className="text-slate-700">{noteModalRecord.callDate}</strong></span>
+                )}
+              </div>
+
+              {noteModalRecord.feedbackNote && (
+                <div className="bg-white p-2 rounded-lg border border-slate-200/80 text-[11px]">
+                  <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide block mb-0.5">
+                    Agent's Logged Feedback Note:
+                  </span>
+                  <p className="text-slate-700 italic">
+                    "{noteModalRecord.feedbackNote}"
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Note Textarea */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-800">
+                  Supervisor Directive / Instructions <span className="text-red-600">*</span>
+                </label>
+                <span className="text-[10px] text-slate-400">
+                  {tempSupervisorNote.length} characters
+                </span>
+              </div>
+              <textarea
+                rows={4}
+                value={tempSupervisorNote}
+                onChange={(e) => setTempSupervisorNote(e.target.value)}
+                placeholder="Write specific management instructions for the agent (e.g. Call this customer back, offer special promotional fee discount, verify alternate contact number)..."
+                className="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 leading-relaxed font-normal"
+                autoFocus
+              />
+            </div>
+
+            {/* Live Visibility Notice */}
+            <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200/80 text-[11px] text-blue-900 flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-bold">Agent Visibility Guaranteed:</strong>
+                <p className="text-blue-800 text-[10.5px] mt-0.5">
+                  Agent <strong className="font-bold text-blue-950">{agent?.name}</strong> will see this note on their calling screen (Focus Mode), in their Customer Dossier, and in their Excel Calling Records roster.
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <div>
+                {noteModalRecord.supervisorNote && (
+                  <button
+                    type="button"
+                    onClick={() => setTempSupervisorNote('')}
+                    className="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Clear Directive
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNoteModalRecord(null)}
+                  className="px-3.5 py-1.5 text-slate-600 hover:bg-slate-100 rounded-xl font-bold text-xs cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveSupervisorNote}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white rounded-xl font-bold text-xs shadow-xs transition-all cursor-pointer active:scale-95 shadow-red-500/20"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Note</span>
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

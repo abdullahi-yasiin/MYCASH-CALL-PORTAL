@@ -35,8 +35,10 @@ import {
   Legend, 
   CartesianGrid 
 } from 'recharts';
-import { User, CustomerRecord, ActivityLog, isRecordAssignedBySupervisor } from '../types';
+import { User, CustomerRecord, ActivityLog, CallStatus, isRecordAssignedBySupervisor } from '../types';
 import { exportTeamSummaryToExcel, TeamMemberSummaryRow } from '../utils/exportEngine';
+import { MarkAsCalledModal } from './MarkAsCalledModal';
+import { AppointmentsListTable } from './AppointmentsListTable';
 
 interface SupervisorDashboardProps {
   currentUser: User;
@@ -74,6 +76,10 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   const [reassignModalRecord, setReassignModalRecord] = useState<CustomerRecord | null>(null);
   const [selectedTargetAgentId, setSelectedTargetAgentId] = useState<string>('');
   const [reassignNote, setReassignNote] = useState<string>('');
+
+  // Appointments subtab & Mark As Called state
+  const [appointmentSubTab, setAppointmentSubTab] = useState<'upcoming' | 'previous'>('upcoming');
+  const [markAsCalledRecord, setMarkAsCalledRecord] = useState<CustomerRecord | null>(null);
 
   // Close upload dropdown when clicking outside
   useEffect(() => {
@@ -189,11 +195,22 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   const totalTeamNotAvailable = teamRecords.filter(r => r.status === 'Not Available').length;
   const totalTeamRejected = teamRecords.filter(r => r.status === 'Rejected').length;
   
-  // Team appointments (includes all scheduled callbacks and supervisor-assigned appointments)
+  // Team appointments (includes all scheduled callbacks and supervisor-assigned appointments not completed)
   const teamAppointments = useMemo(() => {
     return teamRecords
-      .filter(r => (r.appointment && r.appointment.trim() !== '') || isRecordAssignedBySupervisor(r))
+      .filter(r => ((r.appointment && r.appointment.trim() !== '') || isRecordAssignedBySupervisor(r)) && !r.appointmentCompleted)
       .sort((a, b) => ((a.appointment || '') > (b.appointment || '') ? 1 : -1));
+  }, [teamRecords]);
+
+  // Previous appointments for supervisor's team
+  const previousTeamAppointments = useMemo(() => {
+    return teamRecords
+      .filter(r => r.appointmentCompleted === true)
+      .sort((a, b) => {
+        const aDate = a.appointmentCompletedAt || a.callDate || '';
+        const bDate = b.appointmentCompletedAt || b.callDate || '';
+        return bDate.localeCompare(aDate);
+      });
   }, [teamRecords]);
 
   const teamConversionRate = totalTeamCalled > 0 
@@ -820,98 +837,78 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       {/* ======================================================== */}
       {activeTab === 'teamAppointments' && (
         <div className="space-y-3 sm:space-y-4">
-          <div className="bg-white border border-slate-200/90 rounded-lg sm:rounded-2xl shadow-xs overflow-hidden">
-            <div className="px-2.5 sm:px-6 py-1.5 sm:py-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between gap-1.5 sm:gap-3 flex-wrap">
-              <div>
-                <h3 className="font-bold text-slate-900 text-[10px] sm:text-sm flex items-center gap-1 sm:gap-2">
-                  <CalendarCheck className="w-3 h-3 sm:w-4 sm:h-4 text-red-600 shrink-0" />
-                  Upcoming Callbacks Scheduled by Your Team
-                </h3>
-                <p className="text-[8px] sm:text-xs text-slate-500 mt-0.5 leading-tight">
-                  Customer callback appointments booked by team members under your supervision
-                </p>
-              </div>
-              <span className="hidden sm:inline-flex text-xs font-semibold px-2.5 py-1 bg-red-50 text-red-700 rounded-xl border border-red-200 shrink-0">
-                {teamAppointments.length} Booked Callbacks
-              </span>
+          <div className="bg-white border border-slate-200/90 rounded-lg sm:rounded-2xl p-3 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
+                <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 shrink-0" />
+                <span>Team Callback Appointments & Follow-up</span>
+              </h3>
+              <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">
+                Manage upcoming customer callbacks booked by team members and review previous completed callbacks
+              </p>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-[9.5px] sm:text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-100/90 text-slate-600 font-bold uppercase tracking-wider text-[7.5px] sm:text-[9px] border-b border-slate-200">
-                    <th className="py-1 sm:py-2 px-2.5 sm:px-4">Customer Name</th>
-                    <th className="py-1 sm:py-2 px-2 sm:px-3">Phone</th>
-                    <th className="py-1 sm:py-2 px-2 sm:px-3">Scheduled Callback Time</th>
-                    <th className="py-1 sm:py-2 px-2 sm:px-3">Assigned Team Member</th>
-                    <th className="py-1 sm:py-2 px-2 sm:px-3">Agent Notes (Full View)</th>
-                    <th className="py-1 sm:py-2 px-2 sm:px-3 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {teamAppointments.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 sm:py-12 text-center text-slate-400 text-[10px] sm:text-xs">
-                        <AlertCircle className="w-4 h-4 sm:w-6 sm:h-6 mx-auto mb-1 text-slate-300" />
-                        No upcoming appointments currently booked by your team members.
-                      </td>
-                    </tr>
-                  ) : (
-                    teamAppointments.map((app) => (
-                      <tr key={app.id} className="hover:bg-slate-50/90 transition-colors">
-                        <td className="py-2.5 sm:py-3 px-2.5 sm:px-4 font-bold text-slate-900 text-[9.5px] sm:text-xs">
-                          {app.customerName}
-                        </td>
-                        <td className="py-2.5 sm:py-3 px-2 sm:px-3 font-mono text-slate-700 text-[9px] sm:text-xs">
-                          {app.phoneNumber}
-                        </td>
-                        <td className="py-2.5 sm:py-3 px-2 sm:px-3">
-                          <span className="bg-red-100 text-red-800 font-bold px-1.5 sm:px-2 py-0.5 rounded-xs sm:rounded border border-red-200 text-[8.5px] sm:text-[11px] whitespace-nowrap inline-block">
-                            {app.appointment.replace('T', ' ')}
-                          </span>
-                          {isRecordAssignedBySupervisor(app) && (
-                            <div className="mt-1">
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-amber-50 text-amber-900 border border-amber-300/80 whitespace-nowrap">
-                                <UserCheck className="w-2.5 h-2.5 text-amber-600 shrink-0" />
-                                Reassigned {app.reassignedFromAgentName ? `from ${app.reassignedFromAgentName}` : ''}
-                              </span>
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-2.5 sm:py-3 px-2 sm:px-3 font-semibold text-slate-800 text-[9px] sm:text-xs">
-                          {app.assignedAgentName}
-                        </td>
-                        <td className="py-2.5 sm:py-3 px-2 sm:px-3 text-slate-700 text-[9.5px] sm:text-xs w-64 max-w-[260px] sm:max-w-xs md:max-w-sm align-top">
-                          {app.feedbackNote ? (
-                            <div className="w-full whitespace-normal break-words [overflow-wrap:anywhere] [word-break:break-word] bg-slate-50 border border-slate-200/90 rounded-lg p-2 leading-relaxed text-slate-800 shadow-2xs font-sans">
-                              {app.feedbackNote}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 italic">No notes logged</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 sm:py-3 px-2 sm:px-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setReassignModalRecord(app);
-                              setSelectedTargetAgentId('');
-                              setReassignNote('');
-                            }}
-                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-lg font-bold text-[10px] sm:text-[11px] inline-flex items-center gap-1 shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
-                            title="Reassign this callback appointment to another team member under your supervision"
-                          >
-                            <UserCheck className="w-3 h-3 shrink-0" />
-                            <span>Reassign</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            {/* Subtab Pills */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs self-start md:self-auto flex-wrap">
+              <button
+                type="button"
+                onClick={() => setAppointmentSubTab('upcoming')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
+                  appointmentSubTab === 'upcoming'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CalendarCheck className="w-3 h-3 text-red-600" />
+                <span>Upcoming Callbacks</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] ${
+                  appointmentSubTab === 'upcoming' ? 'bg-red-800 text-white' : 'bg-red-100 text-red-700'
+                }`}>
+                  {teamAppointments.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAppointmentSubTab('previous')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
+                  appointmentSubTab === 'previous'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-emerald-800 hover:text-emerald-950 bg-emerald-50 border border-emerald-200'
+                }`}
+              >
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span>Previous Appointments</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] font-bold ${
+                  appointmentSubTab === 'previous' ? 'bg-emerald-900 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {previousTeamAppointments.length}
+                </span>
+              </button>
             </div>
           </div>
+
+          {appointmentSubTab === 'upcoming' ? (
+            <AppointmentsListTable
+              records={teamAppointments}
+              type="upcoming"
+              currentUser={currentUser}
+              onMarkAsCalled={(rec) => setMarkAsCalledRecord(rec)}
+              onReassign={(rec) => {
+                setReassignModalRecord(rec);
+                setSelectedTargetAgentId('');
+                setReassignNote('');
+              }}
+              emptyMessage="No upcoming appointments currently booked by your team members."
+            />
+          ) : (
+            <AppointmentsListTable
+              records={previousTeamAppointments}
+              type="previous"
+              currentUser={currentUser}
+              emptyMessage="No completed team callback appointments recorded in Previous Appointments yet."
+            />
+          )}
         </div>
       )}
 
@@ -1089,6 +1086,29 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           </div>
         </div>
       )}
+      {/* Mark As Called Modal */}
+      <MarkAsCalledModal
+        isOpen={Boolean(markAsCalledRecord)}
+        record={markAsCalledRecord}
+        currentUser={currentUser}
+        onClose={() => setMarkAsCalledRecord(null)}
+        onSave={(record, feedbackNote, status) => {
+          if (!onUpdateRecord) return;
+          const updated: CustomerRecord = {
+            ...record,
+            appointmentCompleted: true,
+            appointmentCompletedAt: new Date().toISOString(),
+            appointmentCompletedBy: currentUser.name,
+            feedbackNote,
+            status,
+            hasBeenCalled: true,
+            callDate: new Date().toISOString().split('T')[0],
+            callCount: Math.max(1, (record.callCount || 0) + 1),
+            updatedAt: new Date().toISOString()
+          };
+          onUpdateRecord(updated, `Supervisor marked appointment as called for ${record.customerName} (${status})`);
+        }}
+      />
     </div>
   );
 };

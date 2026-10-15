@@ -46,8 +46,10 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { BranchInfo, User, CustomerRecord, ActivityLog, DeleteExcelTarget, isRecordAssignedBySupervisor } from '../types';
+import { BranchInfo, User, CustomerRecord, ActivityLog, DeleteExcelTarget, CallStatus, isRecordAssignedBySupervisor } from '../types';
 import { exportTeamSummaryToExcel, TeamMemberSummaryRow } from '../utils/exportEngine';
+import { MarkAsCalledModal } from './MarkAsCalledModal';
+import { AppointmentsListTable } from './AppointmentsListTable';
 
 interface AdminDashboardProps {
   branches: BranchInfo[];
@@ -66,6 +68,7 @@ interface AdminDashboardProps {
   onOpenSetBranchTarget?: (branch: BranchInfo) => void;
   onOpenAiIntelligence?: () => void;
   onOpenEmailConfig?: () => void;
+  onUpdateRecord?: (updatedRecord: CustomerRecord, changeDetails: string) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -84,10 +87,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenSetAgentTarget,
   onOpenSetBranchTarget,
   onOpenAiIntelligence,
-  onOpenEmailConfig
+  onOpenEmailConfig,
+  onUpdateRecord
 }) => {
   // Active view tab inside the auto-summary dashboard
   const [activeSection, setActiveSection] = useState<'teamExcels' | 'regionalBranches' | 'supervisors' | 'appointments' | 'activityLogs'>('teamExcels');
+  
+  // Subtab for Section 4: Scheduled Appointments
+  const [appSubTab, setAppSubTab] = useState<'upcoming' | 'previous'>('upcoming');
+  const [markAsCalledRecord, setMarkAsCalledRecord] = useState<CustomerRecord | null>(null);
   
   // Filters & Sort for Section 1: Team Excels
   const [excelFilterMode, setExcelFilterMode] = useState<'available' | 'all'>('available');
@@ -369,13 +377,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   }, [supervisors, records, teamMembers]);
 
-  // All upcoming appointments across team members' Excels (adheres to excelFilterMode & active Excels)
+  // All upcoming appointments across team members' Excels (adheres to excelFilterMode & active Excels, excluding completed)
   const allAppointments = useMemo(() => {
     const seen = new Set<string>();
     let list: CustomerRecord[] = [];
     for (const r of records) {
       if (!r || !r.id || seen.has(r.id)) continue;
-      if (r.appointment && r.appointment.trim() !== '') {
+      if (r.appointment && r.appointment.trim() !== '' && !r.appointmentCompleted) {
         seen.add(r.id);
         list.push(r);
       }
@@ -389,6 +397,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       );
     }
     return list.sort((a, b) => (a.appointment > b.appointment ? 1 : -1));
+  }, [records, excelFilterMode, teamMemberSummaries]);
+
+  // All previous completed appointments across team members' Excels
+  const allPreviousAppointments = useMemo(() => {
+    const seen = new Set<string>();
+    let list: CustomerRecord[] = [];
+    for (const r of records) {
+      if (!r || !r.id || seen.has(r.id)) continue;
+      if (r.appointmentCompleted === true) {
+        seen.add(r.id);
+        list.push(r);
+      }
+    }
+    if (excelFilterMode === 'available') {
+      const activeAgentIds = new Set(teamMemberSummaries.filter(s => s.totalLeads > 0).map(s => s.agent.id));
+      const activeAgentNames = new Set(teamMemberSummaries.filter(s => s.totalLeads > 0).map(s => s.agentName.trim().toLowerCase()));
+      list = list.filter(r => 
+        (r.assignedAgentId && activeAgentIds.has(r.assignedAgentId)) ||
+        (r.assignedAgentName && activeAgentNames.has(r.assignedAgentName.trim().toLowerCase()))
+      );
+    }
+    return list.sort((a, b) => {
+      const aDate = a.appointmentCompletedAt || a.callDate || '';
+      const bDate = b.appointmentCompletedAt || b.callDate || '';
+      return bDate.localeCompare(aDate);
+    });
   }, [records, excelFilterMode, teamMemberSummaries]);
 
   // Filtered Regional Branches with Branch, Supervisor, Agent, Search, and Sort options
@@ -500,6 +534,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return appSortDirection === 'asc' ? cmp : -cmp;
     });
   }, [allAppointments, appAgentFilter, appBranchFilter, appSupervisorFilter, appSearchQuery, appSortField, appSortDirection, supervisors]);
+
+  // Filtered Previous Appointments with Agent, Branch, Supervisor, and Search options
+  const filteredPreviousAppointments = useMemo(() => {
+    const result = allPreviousAppointments.filter(app => {
+      const matchAgent = appAgentFilter === 'ALL' || app.assignedAgentId === appAgentFilter || app.assignedAgentName === appAgentFilter;
+      const matchBranch = appBranchFilter === 'ALL' || app.areaOfReg === appBranchFilter;
+      let matchSup = true;
+      if (appSupervisorFilter !== 'ALL') {
+        const sup = supervisors.find(s => s.id === appSupervisorFilter || s.name === appSupervisorFilter);
+        matchSup = app.supervisorId === appSupervisorFilter || (sup ? sup.branch === app.areaOfReg : false);
+      }
+      const q = appSearchQuery.toLowerCase();
+      const matchQuery = !q || 
+        app.customerName.toLowerCase().includes(q) || 
+        app.phoneNumber.includes(q) || 
+        (app.assignedAgentName && app.assignedAgentName.toLowerCase().includes(q)) || 
+        app.areaOfReg.toLowerCase().includes(q) ||
+        (app.feedbackNote && app.feedbackNote.toLowerCase().includes(q));
+      return matchAgent && matchBranch && matchSup && matchQuery;
+    });
+
+    return [...result].sort((a, b) => {
+      const aDate = a.appointmentCompletedAt || a.callDate || '';
+      const bDate = b.appointmentCompletedAt || b.callDate || '';
+      return bDate.localeCompare(aDate);
+    });
+  }, [allPreviousAppointments, appAgentFilter, appBranchFilter, appSupervisorFilter, appSearchQuery, supervisors]);
 
   // Available users/operators for audit logs filter
   const availableLogUsers = useMemo(() => {
@@ -2271,74 +2332,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200/90 rounded-xl sm:rounded-2xl shadow-xs overflow-hidden">
-            <div className="px-2.5 sm:px-6 py-2 sm:py-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between flex-wrap gap-1.5 sm:gap-2">
-              <div>
-                <h3 className="font-bold text-slate-900 text-[10px] sm:text-sm flex items-center gap-1.5 sm:gap-2">
-                  <CalendarCheck className="w-3 h-3 sm:w-4 sm:h-4 text-red-600 shrink-0" />
-                  <span>Upcoming Follow-up & Callback Appointments (All Teams)</span>
-                </h3>
-                <p className="text-[8px] sm:text-xs text-slate-500 mt-0.5">
-                  Scheduled customer callbacks booked across all team members' Excels
-                </p>
-              </div>
-              <span className="hidden sm:inline-flex items-center text-[9.5px] sm:text-xs font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 bg-red-50 text-red-700 rounded-lg sm:rounded-xl border border-red-200">
-                {filteredAppointments.length} of {allAppointments.length} Booked Callbacks
-              </span>
+          <div className="bg-white border border-slate-200/90 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
+                <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 shrink-0" />
+                <span>Enterprise Follow-up & Callback Appointments</span>
+              </h3>
+              <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">
+                Scheduled customer callbacks booked across all team members' Excels
+              </p>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-100/90 text-slate-700 font-bold uppercase tracking-wider text-[7.5px] sm:text-[9px] border-b border-slate-200">
-                    <th className="py-1.5 sm:py-2 px-1.5 sm:px-3">Customer Name</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2.5">Phone</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2.5">Area / Branch</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2.5">Scheduled Time</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2.5">Assigned Agent</th>
-                    <th className="py-1.5 sm:py-2 px-1 sm:px-2.5">Feedback / Objective</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredAppointments.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
-                        <AlertCircle className="w-6 h-6 mx-auto mb-1 text-slate-300" />
-                        No upcoming appointments currently match your filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredAppointments.map((app) => (
-                      <tr key={app.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-2 sm:py-3 px-2 sm:px-4 font-bold text-slate-900 text-[10px] sm:text-xs">
-                          {app.customerName}
-                        </td>
-                        <td className="py-2 sm:py-3 px-1.5 sm:px-3 font-mono text-slate-700 text-[10px] sm:text-xs">
-                          {app.phoneNumber}
-                        </td>
-                        <td className="py-2 sm:py-3 px-1.5 sm:px-3 text-slate-600 text-[10px] sm:text-xs">
-                          {app.areaOfReg}
-                        </td>
-                        <td className="py-2 sm:py-3 px-1.5 sm:px-3">
-                          <span className="bg-red-100 text-red-800 font-bold px-1.5 sm:px-2 py-0.5 rounded border border-red-200 text-[9.5px] sm:text-xs">
-                            {app.appointment.replace('T', ' ')}
-                          </span>
-                        </td>
-                        <td className="py-2 sm:py-3 px-1.5 sm:px-3 font-medium text-slate-800 text-[10px] sm:text-xs">
-                          {app.assignedAgentName}
-                        </td>
-                        <td className="py-2 sm:py-3 px-1.5 sm:px-3 text-slate-700 w-64 max-w-[260px] sm:max-w-xs md:max-w-sm align-top">
-                          <div className="w-full whitespace-normal break-words [overflow-wrap:anywhere] [word-break:break-word] leading-relaxed text-[10px] sm:text-xs text-slate-700" title={app.feedbackNote}>
-                            {app.feedbackNote || <span className="text-slate-400 italic">Callback requested</span>}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            {/* Subtab Pills */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs self-start md:self-auto flex-wrap">
+              <button
+                type="button"
+                onClick={() => setAppSubTab('upcoming')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
+                  appSubTab === 'upcoming'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CalendarCheck className="w-3 h-3 text-red-600" />
+                <span>Upcoming Callbacks</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] ${
+                  appSubTab === 'upcoming' ? 'bg-red-800 text-white' : 'bg-red-100 text-red-700'
+                }`}>
+                  {filteredAppointments.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAppSubTab('previous')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
+                  appSubTab === 'previous'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-emerald-800 hover:text-emerald-950 bg-emerald-50 border border-emerald-200'
+                }`}
+              >
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span>Previous Appointments</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] font-bold ${
+                  appSubTab === 'previous' ? 'bg-emerald-900 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {filteredPreviousAppointments.length}
+                </span>
+              </button>
             </div>
           </div>
+
+          {appSubTab === 'upcoming' ? (
+            <AppointmentsListTable
+              records={filteredAppointments}
+              type="upcoming"
+              currentUser={currentUser}
+              onMarkAsCalled={(rec) => setMarkAsCalledRecord(rec)}
+              emptyMessage="No upcoming appointments currently match your filters."
+            />
+          ) : (
+            <AppointmentsListTable
+              records={filteredPreviousAppointments}
+              type="previous"
+              currentUser={currentUser}
+              emptyMessage="No previous completed appointments currently match your filters."
+            />
+          )}
         </div>
       )}
 
@@ -2511,6 +2571,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
+      {/* Mark As Called Modal for completing callback appointments */}
+      <MarkAsCalledModal
+        isOpen={Boolean(markAsCalledRecord)}
+        record={markAsCalledRecord}
+        currentUser={currentUser}
+        onClose={() => setMarkAsCalledRecord(null)}
+        onSave={(record, feedbackNote, status) => {
+          if (!onUpdateRecord) return;
+          const updated: CustomerRecord = {
+            ...record,
+            appointmentCompleted: true,
+            appointmentCompletedAt: new Date().toISOString(),
+            appointmentCompletedBy: currentUser.name,
+            feedbackNote,
+            status,
+            hasBeenCalled: true,
+            callDate: new Date().toISOString().split('T')[0],
+            callCount: Math.max(1, (record.callCount || 0) + 1),
+            updatedAt: new Date().toISOString()
+          };
+          onUpdateRecord(updated, `HQ Admin marked appointment as called for ${record.customerName} (${status})`);
+        }}
+      />
     </div>
   );
 };

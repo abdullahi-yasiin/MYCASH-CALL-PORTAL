@@ -18,6 +18,7 @@ import {
   UserCheck,
   User as UserIcon,
   Check,
+  CheckCircle2,
   Zap,
   Eye,
   Clock
@@ -66,6 +67,8 @@ import { DeleteExcelModal } from './components/DeleteExcelModal';
 import { SetTargetModal } from './components/SetTargetModal';
 import { SessionInactivityModal } from './components/SessionInactivityModal';
 import { AiIntelligenceModal } from './components/AiIntelligenceModal';
+import { MarkAsCalledModal } from './components/MarkAsCalledModal';
+import { AppointmentsListTable } from './components/AppointmentsListTable';
 import { supabase, supabaseDb, fromDBCustomerRecord } from './lib/supabase';
 import { safeStorage, saveRecordsToIDB, getRecordsFromIDB } from './utils/safeStorage';
 
@@ -270,7 +273,8 @@ export default function App() {
 
   // Active top-level tab (for team members)
   const [activeTab, setActiveTab] = useState<'records' | 'adminAnalytics' | 'supervisorTeam' | 'appointments'>('records');
-  const [agentAppointmentSubTab, setAgentAppointmentSubTab] = useState<'all' | 'myBooked' | 'assignedBySupervisor'>('all');
+  const [agentAppointmentSubTab, setAgentAppointmentSubTab] = useState<'all' | 'myBooked' | 'assignedBySupervisor' | 'previous'>('all');
+  const [markAsCalledRecord, setMarkAsCalledRecord] = useState<CustomerRecord | null>(null);
 
   // Filters
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
@@ -714,7 +718,7 @@ export default function App() {
         const hasAppointment = Boolean(r.appointment && r.appointment.trim() !== '');
         const isSupervisorAssigned = isRecordAssignedBySupervisor(r);
 
-        return hasAppointment || isSupervisorAssigned;
+        return (hasAppointment || isSupervisorAssigned) && !r.appointmentCompleted;
       }).sort((a, b) => {
         const aAppt = (a.appointment || '').trim();
         const bAppt = (b.appointment || '').trim();
@@ -723,7 +727,7 @@ export default function App() {
         return aAppt.localeCompare(bAppt);
       });
     }
-    return filteredRecords.filter(r => (r.appointment && r.appointment.trim() !== '') || isRecordAssignedBySupervisor(r)).sort((a, b) => {
+    return filteredRecords.filter(r => ((r.appointment && r.appointment.trim() !== '') || isRecordAssignedBySupervisor(r)) && !r.appointmentCompleted).sort((a, b) => {
       const aAppt = (a.appointment || '').trim();
       const bAppt = (b.appointment || '').trim();
       if (aAppt && !bAppt) return -1;
@@ -731,6 +735,27 @@ export default function App() {
       return aAppt.localeCompare(bAppt);
     });
   }, [records, filteredRecords, currentUser]);
+
+  // Completed / Previous Appointments (for agent)
+  const previousAppointments = useMemo(() => {
+    if (currentUser?.role === 'TEAM_MEMBER') {
+      return records.filter(r => {
+        const isAssignedToAgent = r.assignedAgentId === currentUser.id ||
+          (r.assignedAgentName && r.assignedAgentName.trim().toLowerCase() === currentUser.name.trim().toLowerCase());
+        if (!isAssignedToAgent) return false;
+        return r.appointmentCompleted === true;
+      }).sort((a, b) => {
+        const aDate = a.appointmentCompletedAt || a.callDate || '';
+        const bDate = b.appointmentCompletedAt || b.callDate || '';
+        return bDate.localeCompare(aDate);
+      });
+    }
+    return records.filter(r => r.appointmentCompleted === true).sort((a, b) => {
+      const aDate = a.appointmentCompletedAt || a.callDate || '';
+      const bDate = b.appointmentCompletedAt || b.callDate || '';
+      return bDate.localeCompare(aDate);
+    });
+  }, [records, currentUser]);
 
   // Supervisors and Team Members lists
   const supervisorsList = useMemo(() => users.filter(u => u.role === 'SUPERVISOR'), [users]);
@@ -777,6 +802,25 @@ export default function App() {
     // Sync with Supabase Cloud DB
     supabaseDb.upsertCustomer(updatedRecord);
     supabaseDb.insertActivityLog(newLog);
+  };
+
+  // Mark as Called handler: saves customer feedback note and moves appointment to Previous Appointments
+  const handleSaveMarkAsCalled = (record: CustomerRecord, feedbackNote: string, status: CallStatus) => {
+    if (!currentUser) return;
+    const updated: CustomerRecord = {
+      ...record,
+      appointmentCompleted: true,
+      appointmentCompletedAt: new Date().toISOString(),
+      appointmentCompletedBy: currentUser.name,
+      feedbackNote,
+      status,
+      hasBeenCalled: true,
+      callDate: new Date().toISOString().split('T')[0],
+      callCount: Math.max(1, (record.callCount || 0) + 1),
+      updatedAt: new Date().toISOString()
+    };
+    handleUpdateRecord(updated, `Marked appointment as called for ${record.customerName} (${status})`);
+    showToast(`Appointment for ${record.customerName} marked as called and recorded in Previous Appointments.`);
   };
 
   // Bulk import commit handler
@@ -1510,6 +1554,7 @@ export default function App() {
             onOpenSetBranchTarget={handleOpenSetBranchTarget}
             onOpenAiIntelligence={() => setIsAiIntelligenceOpen(true)}
             onOpenEmailConfig={() => setIsEmailConfigOpen(true)}
+            onUpdateRecord={handleUpdateRecord}
           />
         ) : currentUser.role === 'SUPERVISOR' ? (
           /* ======================================================= */
@@ -1710,6 +1755,23 @@ export default function App() {
                               {assignedBySupervisorAppointments.length}
                             </span>
                           </button>
+
+                          <button
+                            onClick={() => setAgentAppointmentSubTab('previous')}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
+                              agentAppointmentSubTab === 'previous'
+                                ? 'bg-emerald-600 text-white shadow-2xs'
+                                : 'text-emerald-800 hover:text-emerald-950 bg-emerald-50 border border-emerald-200'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>Previous Appointments</span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] font-bold ${
+                              agentAppointmentSubTab === 'previous' ? 'bg-emerald-900 text-white' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {previousAppointments.length}
+                            </span>
+                          </button>
                         </div>
                       </div>
 
@@ -1725,18 +1787,24 @@ export default function App() {
                         </div>
                       )}
 
-                      <DataTable
-                        records={activeAppointmentsList}
-                        currentUser={currentUser}
-                        onUpdateRecord={handleUpdateRecord}
-                        onOpenCustomerDrawer={(rec) => setDrawerRecord(rec)}
-                        onRequestDeleteRecords={(ids) => handleOpenDeleteExcelModal({
-                          type: 'records',
-                          name: `${ids.length} Selected Customer Records`,
-                          recordCount: ids.length,
-                          recordIds: ids
-                        })}
-                      />
+                      {agentAppointmentSubTab === 'previous' ? (
+                        <AppointmentsListTable
+                          records={previousAppointments}
+                          type="previous"
+                          currentUser={currentUser}
+                          onOpenCustomerDrawer={(rec) => setDrawerRecord(rec)}
+                          emptyMessage="No completed callback appointments recorded in Previous Appointments yet."
+                        />
+                      ) : (
+                        <AppointmentsListTable
+                          records={activeAppointmentsList}
+                          type="upcoming"
+                          currentUser={currentUser}
+                          onMarkAsCalled={(rec) => setMarkAsCalledRecord(rec)}
+                          onOpenCustomerDrawer={(rec) => setDrawerRecord(rec)}
+                          emptyMessage="No upcoming callback appointments found."
+                        />
+                      )}
                     </>
                   );
                 })()}
@@ -1916,6 +1984,15 @@ export default function App() {
         secondsRemaining={warningSecondsRemaining}
         onStayLoggedIn={() => recordActivity(true)}
         onLogoutNow={handleSessionTimeout}
+      />
+
+      {/* Mark As Called Modal for completing callback appointments */}
+      <MarkAsCalledModal
+        isOpen={Boolean(markAsCalledRecord)}
+        record={markAsCalledRecord}
+        currentUser={currentUser}
+        onClose={() => setMarkAsCalledRecord(null)}
+        onSave={handleSaveMarkAsCalled}
       />
 
       {/* AI Intelligence & Customer Feedback Analytics Modal */}

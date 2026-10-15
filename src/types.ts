@@ -66,6 +66,9 @@ export interface CustomerRecord {
   callCount: number; // Deduplication: once set, increments to 1, further edits don't re-increment total calls
   importedBatchId?: string;
   appointmentAssignedBySupervisor?: boolean;
+  appointmentCompleted?: boolean;
+  appointmentCompletedAt?: string;
+  appointmentCompletedBy?: string;
   reassignedFromAgentId?: string;
   reassignedFromAgentName?: string;
   reassignedAt?: string;

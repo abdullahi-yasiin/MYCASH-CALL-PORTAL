@@ -16,7 +16,8 @@ import {
   ExternalLink,
   Sparkles,
   CheckCircle2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  AlertCircle
 } from 'lucide-react';
 import { CustomerRecord, CallStatus, User, ActivityLog } from '../types';
 
@@ -321,9 +322,19 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
                 className="w-full bg-white border border-slate-300 rounded p-2.5 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-500 text-xs"
               />
             ) : (
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded text-slate-500 italic text-[11px]">
-                {record.supervisorNote || 'No internal supervisor note recorded.'}
-              </div>
+              record.supervisorNote ? (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded text-slate-800 text-xs leading-relaxed">
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-1">
+                    <AlertCircle className="w-3 h-3 text-amber-600 inline shrink-0" />
+                    Supervisor Directive for Agent
+                  </div>
+                  <p className="font-medium whitespace-pre-wrap break-words">{record.supervisorNote}</p>
+                </div>
+              ) : (
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded text-slate-500 italic text-[11px]">
+                  No internal supervisor note recorded.
+                </div>
+              )
             )}
           </div>
 

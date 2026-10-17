@@ -18,7 +18,8 @@ import {
   ChevronDown,
   Filter,
   RefreshCw,
-  Database
+  Database,
+  Printer
 } from 'lucide-react';
 import { User, UserRole, RoleDefinition } from '../types';
 import { checkUserPermission } from '../data/rolesPermissions';
@@ -33,6 +34,7 @@ interface HeaderProps {
   onOpenUserManagement: () => void;
   onExportExcel: () => void;
   onExportPdf: () => void;
+  onPrintReport?: () => void;
   onLogout: () => void;
   onToggleFocusMode?: () => void;
   isFocusModeActive?: boolean;
@@ -54,6 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenUserManagement,
   onExportExcel,
   onExportPdf,
+  onPrintReport,
   onLogout,
   onToggleFocusMode,
   isFocusModeActive,
@@ -279,15 +282,35 @@ export const Header: React.FC<HeaderProps> = ({
 
                     <button
                       id="btn-export-pdf-report"
-                      onClick={onExportPdf}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-800 text-slate-200 flex items-center gap-2.5 transition-colors cursor-pointer rounded-xl"
+                      onClick={() => {
+                        setExportMenuOpen(false);
+                        onExportPdf();
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-slate-800 text-slate-200 flex items-center gap-2.5 transition-colors cursor-pointer rounded-lg"
                     >
                       <Download className="w-4 h-4 text-red-400 shrink-0" />
                       <div>
-                        <div className="font-bold text-xs text-white">PDF Report</div>
-                        <div className="text-[10px] text-slate-400">KPI tiles, branch list & charts</div>
+                        <div className="font-bold text-xs text-white">Download PDF (.pdf)</div>
+                        <div className="text-[10px] text-slate-400">Crisp grid & print-ready layout</div>
                       </div>
                     </button>
+
+                    {onPrintReport && (
+                      <button
+                        id="btn-print-css-grid-report"
+                        onClick={() => {
+                          setExportMenuOpen(false);
+                          onPrintReport();
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-800 text-slate-200 flex items-center gap-2.5 transition-colors cursor-pointer rounded-lg"
+                      >
+                        <Printer className="w-4 h-4 text-blue-400 shrink-0" />
+                        <div>
+                          <div className="font-bold text-xs text-white">Print / Save via CSS Grid</div>
+                          <div className="text-[10px] text-slate-400">Native browser print dialog</div>
+                        </div>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

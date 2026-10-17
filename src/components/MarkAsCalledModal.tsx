@@ -10,8 +10,7 @@ import {
   User as UserIcon,
   MapPin,
   AlertCircle,
-  Clock,
-  Sparkles
+  Clock
 } from 'lucide-react';
 import { CustomerRecord, CallStatus, User } from '../types';
 
@@ -22,14 +21,6 @@ interface MarkAsCalledModalProps {
   onClose: () => void;
   onSave: (record: CustomerRecord, feedbackNote: string, status: CallStatus) => void;
 }
-
-const PRESET_FEEDBACKS = [
-  'Spoke with customer, verified details and answered all questions.',
-  'Customer confirmed interest and agreed to proceed with conversion.',
-  'Customer requested tariff breakdown and scheduled follow-up via WhatsApp.',
-  'Customer postponed decision until next week, requested callback.',
-  'Customer declined offer due to current budget constraints.'
-];
 
 export const MarkAsCalledModal: React.FC<MarkAsCalledModalProps> = ({
   isOpen,
@@ -207,32 +198,7 @@ export const MarkAsCalledModal: React.FC<MarkAsCalledModalProps> = ({
             </div>
           </div>
 
-          {/* Quick Feedback Chips */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-500" />
-                <span>Quick Feedback Notes:</span>
-              </label>
-              <span className="text-[10px] text-slate-400">Click to insert</span>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {PRESET_FEEDBACKS.map((preset, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    setFeedbackNote(preset);
-                    setValidationError('');
-                  }}
-                  className="text-[10px] font-medium bg-slate-100 hover:bg-emerald-50 hover:text-emerald-900 hover:border-emerald-200 text-slate-700 px-2 py-0.8 rounded-md border border-slate-200 transition-colors cursor-pointer text-left truncate max-w-full"
-                  title={preset}
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
-          </div>
+
 
           {/* Customer Feedback Note */}
           <div className="space-y-1">

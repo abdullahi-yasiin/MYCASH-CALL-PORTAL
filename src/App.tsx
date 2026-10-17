@@ -42,7 +42,7 @@ import {
 } from './data/mockData';
 import { INITIAL_ROLE_DEFINITIONS, checkUserPermission } from './data/rolesPermissions';
 import { calculateMetrics, filterRecords } from './utils/metrics';
-import { exportToExcel, exportToPdf } from './utils/exportEngine';
+import { exportToExcel, exportToPdf, printPdfReportViaCssGrid } from './utils/exportEngine';
 import { Header } from './components/Header';
 import { MetricCards } from './components/MetricCards';
 import { FiltersBar } from './components/FiltersBar';
@@ -1427,6 +1427,16 @@ export default function App() {
     showToast(`Generated executive PDF calling report.`);
   };
 
+  // Print / CSS Grid PDF Report
+  const handlePrintReport = () => {
+    if (!currentUser) return;
+    const filterSummary = filters.statuses.length > 0
+      ? `Status: ${filters.statuses.join(', ')}`
+      : 'All Outcome Categories';
+    printPdfReportViaCssGrid(filteredRecords, metrics, currentUser, users, filterSummary, branches);
+    showToast(`Opened print-optimized CSS Grid report.`);
+  };
+
   // If user navigated to the dedicated full-page Login view or no active session
   if (isAuthView || !currentUser) {
     return (
@@ -1472,6 +1482,7 @@ export default function App() {
         }}
         onExportExcel={handleExportExcel}
         onExportPdf={handleExportPdf}
+        onPrintReport={handlePrintReport}
         onLogout={() => {
           setIsSessionWarningOpen(false);
           setIsAuthView(true);
@@ -1716,7 +1727,7 @@ export default function App() {
                             }`}
                           >
                             <span>All Callbacks</span>
-                            <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] ${
+                            <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] ${
                               agentAppointmentSubTab === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700'
                             }`}>
                               {upcomingAppointments.length}
@@ -1732,7 +1743,7 @@ export default function App() {
                             }`}
                           >
                             <span>My Booked</span>
-                            <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] ${
+                            <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] ${
                               agentAppointmentSubTab === 'myBooked' ? 'bg-red-600 text-white' : 'bg-slate-200 text-slate-700'
                             }`}>
                               {myBookedAppointments.length}
@@ -1749,7 +1760,7 @@ export default function App() {
                           >
                             <UserCheck className="w-3 h-3 text-amber-900 shrink-0" />
                             <span>Assigned Appointments</span>
-                            <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] font-extrabold ${
+                            <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-extrabold ${
                               agentAppointmentSubTab === 'assignedBySupervisor' ? 'bg-slate-950 text-amber-300' : 'bg-amber-200 text-amber-900'
                             }`}>
                               {assignedBySupervisorAppointments.length}
@@ -1766,7 +1777,7 @@ export default function App() {
                           >
                             <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
                             <span>Previous Appointments</span>
-                            <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] font-bold ${
+                            <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-bold ${
                               agentAppointmentSubTab === 'previous' ? 'bg-emerald-900 text-white' : 'bg-emerald-100 text-emerald-800'
                             }`}>
                               {previousAppointments.length}

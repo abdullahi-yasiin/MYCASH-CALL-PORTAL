@@ -1390,6 +1390,16 @@ export function generatePrintableHtmlReport(
 
   const branchSummaries = computeConsolidatedBranchSummaries(records, agents, supervisors, branches);
 
+  // Overall metric totals
+  const totalLeadsCount = records.length;
+  const totalCallsCount = metrics.totalCalled;
+  const totalSuccessCount = metrics.totalSuccess;
+  const totalAppointmentsCount = metrics.totalAppointments;
+  const totalInProgressCount = metrics.totalInProgress;
+  const totalUncalledCount = metrics.uncalledCount ?? Math.max(0, totalLeadsCount - totalCallsCount);
+  const overallConversionRate = metrics.conversionRate;
+  const overallCoverageRate = totalLeadsCount > 0 ? Math.round((totalCallsCount / totalLeadsCount) * 100) : 0;
+
   const totalBranchLeads = totalLeadsCount;
   const totalBranchCalled = totalCallsCount;
   const totalBranchSuccess = totalSuccessCount;
@@ -1946,7 +1956,7 @@ export function generatePrintableHtmlReport(
           `).join('')}
           <tr class="totals-row">
             <td>ROSTER TOTALS</td>
-            <td>${branchList.length} Hubs</td>
+            <td>${displayBranches.length} Hubs</td>
             <td>${supervisors.length} Sup.</td>
             <td class="num">${totalAgentLeads.toLocaleString()}</td>
             <td class="num">${totalAgentCalled.toLocaleString()}</td>

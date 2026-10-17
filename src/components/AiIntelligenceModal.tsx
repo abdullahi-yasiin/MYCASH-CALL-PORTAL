@@ -24,7 +24,11 @@ import {
   ThumbsDown,
   PhoneCall,
   Loader2,
-  Lock
+  Lock,
+  Key,
+  Settings,
+  Check,
+  ExternalLink
 } from 'lucide-react';
 import { CustomerRecord, BranchInfo, User } from '../types';
 import { runAiIntelligenceAnalysis, generateOfflineHeuristicAnalysis, AiAnalysisResult, isRecordAssignedToAgent, isAppointmentRecord, isRecordInBranch, normalizeBranchName } from '../lib/gemini';
@@ -414,6 +418,25 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
   const [agentSearch, setAgentSearch] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Gemini API Key & Netlify Continuous Deployment Settings state
+  const [showApiKeyConfig, setShowApiKeyConfig] = useState<boolean>(false);
+  const [customApiKeyInput, setCustomApiKeyInput] = useState<string>(() => {
+    return (typeof window !== 'undefined' ? localStorage.getItem('mycash_gemini_api_key') : '') || '';
+  });
+  const [apiKeySaveStatus, setApiKeySaveStatus] = useState<string | null>(null);
+
+  const handleSaveApiKey = () => {
+    const trimmed = customApiKeyInput.trim();
+    if (trimmed) {
+      localStorage.setItem('mycash_gemini_api_key', trimmed);
+      setApiKeySaveStatus('Gemini API key saved to browser! Connected directly for all analysis.');
+    } else {
+      localStorage.removeItem('mycash_gemini_api_key');
+      setApiKeySaveStatus('Custom key cleared. Environment variables (Netlify/System) will be used.');
+    }
+    setTimeout(() => setApiKeySaveStatus(null), 4000);
+  };
+
   // Active view tab inside modal: 'configure' or 'results'
   const [activeTab, setActiveTab] = useState<'configure' | 'results'>('configure');
 
@@ -642,6 +665,59 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
     if (selectedAgentIds.length === 0) {
       setSelectedAgentIds(combinedAgents.map(a => a.id));
     }
+  };
+
+  // Helper to cleanly render bilingual quotes with Somali verbatim + English translation
+  const renderBilingualQuote = (rawQuote: string, idx: number, theme: 'indigo' | 'emerald' | 'amber') => {
+    const parts = rawQuote.split(/\s*—\s*\(English translation:\s*|\s*—\s*\(English:\s*/i);
+    const themeStyles = {
+      indigo: {
+        container: 'bg-indigo-50/70 border-indigo-200/70',
+        badge: 'bg-indigo-600 text-white',
+        text: 'text-indigo-950'
+      },
+      emerald: {
+        container: 'bg-emerald-50/70 border-emerald-200/70',
+        badge: 'bg-emerald-600 text-white',
+        text: 'text-emerald-950'
+      },
+      amber: {
+        container: 'bg-amber-50/70 border-amber-200/70',
+        badge: 'bg-amber-600 text-white',
+        text: 'text-amber-950'
+      }
+    }[theme];
+
+    if (parts.length >= 2) {
+      const somali = parts[0].replace(/^["']|["']$/g, '').trim();
+      const english = parts[1].replace(/\)$/, '').replace(/^["']|["']$/g, '').trim();
+      return (
+        <div key={idx} className={`p-2.5 rounded-lg border ${themeStyles.container} space-y-1.5`}>
+          <div className="flex items-start gap-1.5">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-700 shrink-0">
+              Af-Soomaali:
+            </span>
+            <span className="text-xs font-semibold italic text-slate-900 font-serif">
+              "{somali}"
+            </span>
+          </div>
+          <div className="flex items-start gap-1.5 pt-1 border-t border-slate-200/60">
+            <span className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${themeStyles.badge} shrink-0`}>
+              English:
+            </span>
+            <span className={`text-xs font-medium ${themeStyles.text}`}>
+              {english}
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={idx} className="text-xs italic text-slate-800 font-serif bg-white/70 p-2 rounded border border-slate-200">
+        "{rawQuote.replace(/^["']|["']$/g, '')}"
+      </div>
+    );
   };
 
   // Guard after all hooks so React rules of hooks are strictly adhered to
@@ -1226,6 +1302,90 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                   )}
                 </div>
               </div>
+
+              {/* Netlify Deployment & Gemini AI Connection Card */}
+              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs font-bold text-slate-900">
+                          Gemini 3.8 Flash Engine & Netlify Cloud Sync
+                        </h4>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          Continuous CI/CD Ready
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Automatically connects when deployed to Netlify via GitHub, analyzing customer notes and translating Somali feedback.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyConfig(prev => !prev)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-slate-500" />
+                    <span>{showApiKeyConfig ? 'Hide Netlify Settings' : 'Configure Gemini Key / Netlify'}</span>
+                  </button>
+                </div>
+
+                {/* Collapsible Key & Netlify Guidance Section */}
+                {showApiKeyConfig && (
+                  <div className="mt-3 pt-3 border-t border-slate-200 space-y-3 animate-in fade-in duration-150">
+                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 text-xs space-y-2">
+                      <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <Key className="w-3.5 h-3.5 text-blue-600" />
+                        <span>How Netlify + GitHub Continuous Analysis Works:</span>
+                      </div>
+                      <ul className="list-disc list-inside space-y-1 text-slate-600 text-[11.5px] leading-relaxed">
+                        <li>
+                          <strong>GitHub & Netlify Continuous Deployment:</strong> When you commit or push changes from AI Studio to GitHub, Netlify automatically builds and hosts the app with the included serverless function at <code className="bg-slate-200 px-1 py-0.5 rounded font-mono text-[11px]">/api/ai-intelligence</code>.
+                        </li>
+                        <li>
+                          <strong>Netlify Environment Variable:</strong> In your <em>Netlify Dashboard &gt; Site configuration &gt; Environment variables</em>, add <code className="bg-slate-200 px-1 py-0.5 rounded font-mono text-[11px]">GEMINI_API_KEY</code> so Netlify serverless functions can access Gemini without exposing keys in client bundles.
+                        </li>
+                        <li>
+                          <strong>Direct Browser Key (Instant Connection):</strong> Alternatively, you can paste your Gemini API key below. It will be stored in your browser's local storage and used immediately on your Netlify deployment without waiting for a rebuild.
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <div className="relative flex-1">
+                        <Key className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="password"
+                          value={customApiKeyInput}
+                          onChange={(e) => setCustomApiKeyInput(e.target.value)}
+                          placeholder="Paste Gemini API Key (e.g. AIzaSy...)"
+                          className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-800"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSaveApiKey}
+                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save Key</span>
+                      </button>
+                    </div>
+
+                    {apiKeySaveStatus && (
+                      <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-1.5 animate-in fade-in">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>{apiKeySaveStatus}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             /* ======================================================== */
@@ -1423,9 +1583,17 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                   <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          English Intelligence Report Ready
-                        </span>
+                        {analysisResult.aiEngineStatus === 'connected' ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1 shadow-2xs">
+                            <Sparkles className="w-3 h-3 text-emerald-600 animate-pulse" />
+                            <span>{analysisResult.engineUsed || 'Gemini 3.8 Flash'} • Live AI Connected</span>
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1" title={analysisResult.statusMessage}>
+                            <AlertCircle className="w-3 h-3 text-amber-600" />
+                            <span>Analytical Rules Engine • Configure GEMINI_API_KEY in Netlify</span>
+                          </span>
+                        )}
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 flex items-center gap-1">
                           <Calendar className="w-3 h-3 text-blue-600" />
                           <span>Period: {analysisResult.datePeriod || formattedDatePeriod}</span>
@@ -1789,15 +1957,13 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
 
                               {/* Customer Quotes translated to English */}
                               {item.customerQuotes && item.customerQuotes.length > 0 && (
-                                <div className="bg-slate-50 border-l-2 border-indigo-500 p-2.5 rounded-r-lg space-y-1">
+                                <div className="space-y-1.5">
                                   <div className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">
-                                    Customer Feedback Quotes (Af-Soomaali as in Excel):
+                                    Customer Feedback Quotes & English Translations:
                                   </div>
-                                  {item.customerQuotes.map((q, qIdx) => (
-                                    <div key={qIdx} className="text-xs italic text-slate-700 font-serif">
-                                      {q}
-                                    </div>
-                                  ))}
+                                  <div className="space-y-1.5">
+                                    {item.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'indigo'))}
+                                  </div>
                                 </div>
                               )}
 
@@ -1841,15 +2007,13 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                                 <span className="text-xs font-black text-emerald-700">{apprec.percentage}%</span>
                               </div>
                               {apprec.customerQuotes && apprec.customerQuotes.length > 0 && (
-                                <div className="bg-emerald-100/60 border-l-2 border-emerald-600 p-2 rounded-r space-y-1">
+                                <div className="space-y-1.5">
                                   <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
-                                    Customer Feedback Quotes (Af-Soomaali as in Excel):
+                                    Customer Feedback Quotes & English Translations:
                                   </div>
-                                  {apprec.customerQuotes.map((q, qIdx) => (
-                                    <div key={qIdx} className="text-xs italic text-emerald-950 font-serif">
-                                      "{q}"
-                                    </div>
-                                  ))}
+                                  <div className="space-y-1.5">
+                                    {apprec.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'emerald'))}
+                                  </div>
                                 </div>
                               )}
                               <div className="text-[11px] text-emerald-800 font-medium">
@@ -1893,15 +2057,13 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                                 <strong className="text-slate-800">Customer Behavior:</strong> {rej.customerExplanation}
                               </p>
                               {rej.customerQuotes && rej.customerQuotes.length > 0 && (
-                                <div className="bg-amber-100/60 border-l-2 border-amber-600 p-2 rounded-r space-y-1">
+                                <div className="space-y-1.5">
                                   <div className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
-                                    Customer Feedback Quotes (Af-Soomaali as in Excel):
+                                    Customer Feedback Quotes & English Translations:
                                   </div>
-                                  {rej.customerQuotes.map((q, qIdx) => (
-                                    <div key={qIdx} className="text-xs italic text-amber-950 font-serif">
-                                      "{q}"
-                                    </div>
-                                  ))}
+                                  <div className="space-y-1.5">
+                                    {rej.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'amber'))}
+                                  </div>
                                 </div>
                               )}
                               <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-xs text-blue-950">

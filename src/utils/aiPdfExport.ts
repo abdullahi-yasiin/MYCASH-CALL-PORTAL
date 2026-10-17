@@ -77,8 +77,8 @@ export function generateAiIntelligencePdf(
     doc.setFontSize(7.2);
     doc.setTextColor(148, 163, 184); // slate-400
     doc.text(`Generated: ${timestamp}`, pageWidth - margin, 7.5, { align: 'right' });
-    doc.text(`Scope: ${cleanScope}  |  Period: ${periodText}`, pageWidth - margin, 12.5, { align: 'right' });
-    doc.text(`User: ${currentUser.name} (${currentUser.role})  |  Confidential Enterprise MIS`, pageWidth - margin, 17.5, { align: 'right' });
+    doc.text(`Engine: ${analysis.engineUsed || 'Gemini 3.8 Flash'}  |  Period: ${periodText}`, pageWidth - margin, 12.5, { align: 'right' });
+    doc.text(`Scope: ${cleanScope}  |  User: ${currentUser.name} (${currentUser.role})`, pageWidth - margin, 17.5, { align: 'right' });
   };
 
   // =========================================================================
@@ -303,7 +303,7 @@ export function generateAiIntelligencePdf(
       'CATEGORY',
       'VOL / SEVERITY',
       'ORIGINATING BRANCHES',
-      'CUSTOMER FEEDBACK QUOTES (AF-SOOMAALI AS IN EXCEL)',
+      'CUSTOMER FEEDBACK QUOTES & TRANSLATION (AF-SOOMAALI & ENGLISH)',
       'ROOT CAUSE & ACTION REMEDIATION'
     ]],
     body: complaintsRows,
@@ -395,7 +395,7 @@ export function generateAiIntelligencePdf(
     head: [[
       'SUCCESS FEEDBACK THEME / STRENGTH',
       'SHARE (%)',
-      'CONVERTED CUSTOMER QUOTES (AF-SOOMAALI AS IN EXCEL)',
+      'CONVERTED CUSTOMER QUOTES & TRANSLATIONS (AF-SOOMAALI & ENGLISH)',
       'UNDERLYING CONVERSION DRIVER & REPLICATION STRATEGY'
     ]],
     body: successRows,
@@ -555,7 +555,7 @@ export function generateAiIntelligencePdf(
       'CUSTOMER OBJECTION / REJECTION REASON',
       'SHARE (%)',
       'AFFECTED BRANCHES',
-      'CUSTOMER OBJECTION QUOTES (AF-SOOMAALI AS IN EXCEL)',
+      'CUSTOMER OBJECTION QUOTES & TRANSLATION (AF-SOOMAALI & ENGLISH)',
       'RECOMMENDED OBJECTION-HANDLING REBUTTAL FOR AGENTS'
     ]],
     body: rejectionRows,

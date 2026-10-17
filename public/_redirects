@@ -1,0 +1,3 @@
+/api/ai-intelligence  /.netlify/functions/ai-intelligence  200
+/api/*                /.netlify/functions/:splat          200
+/*                    /index.html                         200

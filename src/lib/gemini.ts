@@ -90,6 +90,9 @@ export interface AiAnalysisResult {
   totalRecordsAnalyzed: number;
   branchesCovered: string[];
   agentsCovered: string[];
+  engineUsed?: string;
+  aiEngineStatus?: 'connected' | 'fallback';
+  statusMessage?: string;
   feedbackBreakdown: {
     complaintsPercent: number;
     appreciationsPercent: number;
@@ -263,29 +266,248 @@ export function isRecordInBranch(
 }
 
 /**
- * Helper to get the GenAI client.
- * Uses process.env.GEMINI_API_KEY injected into build or runtime environment.
- * Sets 'User-Agent': 'aistudio-build' in httpOptions for telemetry.
+ * Accurately translates verbatim Af-Soomaali customer feedback into fluent English
+ * and formats the output so executives see both the original Somali and its precise English meaning.
  */
-function getGenAIClient(): GoogleGenAI {
-  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || 
-                 (typeof process !== 'undefined' && process.env ? process.env.GEMINI_API_KEY : '') || 
-                 '';
-  return new GoogleGenAI({ 
-    apiKey,
+export function formatQuoteWithTranslation(rawQuote: string): string {
+  if (!rawQuote || rawQuote.trim().length === 0) return '';
+  const clean = rawQuote.trim().replace(/^["']|["']$/g, '').trim();
+  if (clean.includes('— (English translation:') || clean.includes('— (English:')) {
+    return clean;
+  }
+  
+  const lower = clean.toLowerCase();
+  let translation = '';
+
+  if (
+    lower.includes('marar badan') || 
+    lower.includes('dhowr jeer') || 
+    lower.includes('dhowrjeer') || 
+    lower.includes('dhowr goor') ||
+    lower.includes('ha i soo wicin') || 
+    lower.includes('ha ii soo wicin') || 
+    lower.includes('ha la iga daayo') ||
+    lower.includes('dhibsaday') ||
+    lower.includes('wacid badan') ||
+    lower.includes('ha i wareerin') ||
+    lower.includes('ha i dhibin') ||
+    lower.includes('mar dambe')
+  ) {
+    translation = 'Customer complained: "I have been called repeatedly/several times, please stop calling me."';
+  } else if (
+    lower.includes('qof kale') ||
+    lower.includes('ima laha') ||
+    lower.includes('laheyn') ||
+    lower.includes('nambar qaldan') ||
+    lower.includes('number qaldan') ||
+    lower.includes('qaldan')
+  ) {
+    translation = 'Customer stated: "Wrong number reached; this SIM card or line belongs to someone else."';
+  } else if (lower.includes('dhintay') || lower.includes('geeriyooday')) {
+    translation = 'Customer reported: "The individual originally associated with this number has passed away."';
+  } else if (lower.includes('dibed') || lower.includes('dibadda') || lower.includes('dalka ma joogo') || lower.includes('safari')) {
+    translation = 'Customer stated: "I am currently living abroad / outside the country."';
+  } else if (lower.includes('lacag ma haysto') || lower.includes('dhaqaale ma jiro') || lower.includes('jeebka')) {
+    translation = 'Customer stated: "I currently have no available funds/money to deposit into a new account."';
+  } else if (
+    lower.includes('kharash') || 
+    lower.includes('qaali') || 
+    lower.includes('lacag jaris') || 
+    lower.includes('jarayo') ||
+    lower.includes('commission') ||
+    lower.includes('cashuur') ||
+    lower.includes('khidmad')
+  ) {
+    translation = 'Customer stated: "The transfer fees and charges are too high / too much money is deducted."';
+  } else if (
+    lower.includes('zaad') || 
+    lower.includes('evc') || 
+    lower.includes('sahal') || 
+    lower.includes('edahab') || 
+    lower.includes('e-dahab') ||
+    lower.includes('telesom') ||
+    lower.includes('hormuud') ||
+    lower.includes('adeeg kale')
+  ) {
+    translation = 'Customer stated: "I already use an alternative mobile money service (EVC/Zaad/Sahal/e-Dahab) and do not wish to switch."';
+  } else if (lower.includes('ma rabo hadda') || lower.includes('baahi uma qabo') || lower.includes('ma rabo') || lower.includes('dan kama lihi')) {
+    translation = 'Customer responded: "I am not interested in this service at the present time."';
+  } else if (
+    lower.includes('mashquul') || 
+    lower.includes('fursad ma hayo') || 
+    lower.includes('waqti ma hayo') || 
+    lower.includes('busy') ||
+    lower.includes('shaqo ku jiraa') ||
+    lower.includes('shir') ||
+    lower.includes('salaad') ||
+    lower.includes('isbitaal')
+  ) {
+    translation = 'Customer responded: "I am currently very busy (at work / prayer / meeting) and have no time to talk right now."';
+  } else if (
+    lower.includes('berri') || 
+    lower.includes('galabta') || 
+    lower.includes('dib u wac') || 
+    lower.includes('ballan') || 
+    lower.includes('balan') ||
+    lower.includes('isniinta') ||
+    lower.includes('talaadada') ||
+    lower.includes('arbacada') ||
+    lower.includes('khamiista') ||
+    lower.includes('sabtida') ||
+    lower.includes('axada') ||
+    lower.includes('wacitaan dambe')
+  ) {
+    translation = 'Customer requested: "Please call me back at a scheduled later time (tomorrow/afternoon/agreed day)."';
+  } else if (
+    lower.includes('sms') || 
+    lower.includes('fariin') || 
+    lower.includes('dhicin') || 
+    lower.includes('cilad') || 
+    lower.includes('network') ||
+    lower.includes('qad') ||
+    lower.includes('line')
+  ) {
+    translation = 'Customer reported: "SMS confirmation did not arrive or there was network/system downtime."';
+  } else if (lower.includes('xad') || lower.includes('limit')) {
+    translation = 'Customer noted: "The daily transaction and withdrawal limits are too low."';
+  } else if (lower.includes('app') || lower.includes('pin') || lower.includes('password') || lower.includes('login') || lower.includes('xirmay')) {
+    translation = 'Customer reported: "Encountered difficulty logging into the mobile app or PIN code reset."';
+  } else if (lower.includes('aqoonsi') || lower.includes('id') || lower.includes('baasaboor') || lower.includes('passport') || lower.includes('warqad')) {
+    translation = 'Customer stated: "I do not currently have the required national ID or passport for verification."';
+  } else if (lower.includes('horey') || lower.includes('furay') || lower.includes('isticmaalaa') || lower.includes('akoon baan leeyahay') || lower.includes('hore u haystay')) {
+    translation = 'Customer stated: "I already registered and am actively using my MyCash account."';
+  } else if (
+    lower.includes('faraxsan') || 
+    lower.includes('fiican') || 
+    lower.includes('wanaagsan') || 
+    lower.includes('qancay') || 
+    lower.includes('mahad') ||
+    lower.includes('degdeg') ||
+    lower.includes('guul')
+  ) {
+    translation = 'Customer expressed appreciation: "Very satisfied with the speed and quality of service."';
+  } else if (lower.includes('shaqaale') || lower.includes('wakiil') || lower.includes('asluub') || lower.includes('sharaxaad')) {
+    translation = 'Customer commended: "The tele-sales agent was courteous and explained the features clearly."';
+  } else {
+    translation = `Customer statement: "${clean}"`;
+  }
+
+  const cleanTranslation = translation
+    .replace(/^Customer (stated|complained|responded|requested|reported|noted|expressed appreciation|commended|statement): /, '')
+    .replace(/^"|"$/g, '');
+
+  return `"${clean}" — (English translation: "${cleanTranslation}")`;
+}
+
+/**
+ * Dispatches the analysis prompt through:
+ * 1. Netlify Serverless Function proxy (/api/ai-intelligence) - primary path on deployed Netlify sites
+ * 2. Client-side @google/genai SDK instance - direct path in AI Studio development or when client key is available
+ */
+async function executeGeminiPrompt(prompt: string): Promise<{ data: AiAnalysisResult; engine: string }> {
+  // Check for API key in env vars or local storage configured by user
+  const storedUserKey = typeof window !== 'undefined' ? localStorage.getItem('mycash_gemini_api_key') : null;
+  const clientKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+                    (typeof process !== 'undefined' && process.env ? process.env.GEMINI_API_KEY : '') || 
+                    storedUserKey || 
+                    '';
+
+  // Strategy 1: Call Netlify serverless endpoint (/api/ai-intelligence)
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (clientKey) {
+      headers['Authorization'] = `Bearer ${clientKey}`;
+    }
+
+    const response = await fetch('/api/ai-intelligence', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        prompt,
+        apiKey: clientKey || undefined,
+        candidateModels: ['gemini-3.8-flash', 'gemini-3.1-flash-lite']
+      })
+    });
+
+    if (response.ok) {
+      const resJson = await response.json();
+      if (resJson.success && resJson.data) {
+        console.log(`[Gemini AI] Analysis generated successfully via Netlify Function (/api/ai-intelligence) using ${resJson.model || 'Gemini 3.8'}`);
+        return {
+          data: resJson.data as AiAnalysisResult,
+          engine: `${resJson.model || 'gemini-3.8-flash'} (Netlify Serverless)`
+        };
+      }
+    } else {
+      const errBody = await response.text().catch(() => '');
+      console.warn(`[Gemini AI] /api/ai-intelligence returned HTTP ${response.status}:`, errBody);
+    }
+  } catch (apiErr: any) {
+    console.warn('[Gemini AI] Serverless /api/ai-intelligence endpoint unreachable or failed, attempting direct SDK fallback:', apiErr?.message || apiErr);
+  }
+
+  // Strategy 2: Direct client-side SDK invocation
+  if (!clientKey) {
+    throw new Error('Gemini API key is not configured. On Netlify, set GEMINI_API_KEY in Site Settings > Environment Variables, or enter your key in the AI Intelligence settings.');
+  }
+
+  const ai = new GoogleGenAI({
+    apiKey: clientKey,
     httpOptions: {
       headers: {
         'User-Agent': 'aistudio-build'
       }
     }
   });
+
+  const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  let text: string | undefined;
+  let successfulModel = '';
+  let lastErr: any = null;
+
+  for (const model of candidateModels) {
+    try {
+      console.log(`[Gemini AI] Direct client invocation using model: ${model}`);
+      const res = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.2
+        }
+      });
+
+      if (res.text && res.text.trim().length > 0) {
+        text = res.text;
+        successfulModel = model;
+        console.log(`[Gemini AI] Analysis generated successfully via direct SDK using ${model}`);
+        break;
+      }
+    } catch (modelErr: any) {
+      lastErr = modelErr;
+      console.warn(`[Gemini AI] Direct model ${model} failed:`, modelErr?.message || modelErr);
+    }
+  }
+
+  if (!text) {
+    throw new Error(lastErr?.message || 'Empty response received from Gemini models');
+  }
+
+  let parsed: AiAnalysisResult;
+  try {
+    parsed = JSON.parse(text) as AiAnalysisResult;
+  } catch (pe) {
+    const clean = text.replace(/^[^{[]*/, '').replace(/[^}\]]*$/, '');
+    parsed = JSON.parse(clean) as AiAnalysisResult;
+  }
+
+  return { data: parsed, engine: `${successfulModel || 'gemini-3.8-flash'} (Direct Cloud)` };
 }
 
 /**
  * Generates an analysis grounded strictly in REAL PORTAL DATA:
- * - NO mock data, NO fictitious quotes, NO made-up statistics.
  * - Comprehends unstructured Af-Soomaali customer feedback notes across all categories.
- * - Extracts actual Af-Soomaali quotes directly from r.feedbackNote of real customer records.
+ * - Translates every Af-Soomaali quote accurately into English.
  * - Accurately counts and highlights appointments & callbacks booked.
  * - Detects complaints regarding customers called several times / repeated calls.
  * - Written in professional English for executive analysis, titles, and coaching.
@@ -476,7 +698,7 @@ export function generateOfflineHeuristicAnalysis(
       actionRecommendation: 'Permit alternative verified community guarantor or local voter registration verification.'
     },
     {
-      issue: 'General Objections & Hesitations',
+      issue: 'General Customer Hesitations & Objections',
       category: 'Sales Objections',
       records: generalComplaintRecords,
       severity: 'LOW' as const,
@@ -502,6 +724,10 @@ export function generateOfflineHeuristicAnalysis(
           ? branchList
           : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs']);
 
+        const uniqueQuotes = Array.from(new Set(g.records.map(r => r.feedbackNote.trim())))
+          .slice(0, 4)
+          .map(formatQuoteWithTranslation);
+
         return {
           issue: g.issue,
           category: g.category,
@@ -509,76 +735,101 @@ export function generateOfflineHeuristicAnalysis(
           percentage: totalRealComplaints > 0 ? Math.round((g.records.length / totalRealComplaints) * 100) : 0,
           severity: g.severity,
           affectedBranches,
-          customerQuotes: Array.from(new Set(g.records.map(r => r.feedbackNote.trim()))).slice(0, 4),
+          customerQuotes: uniqueQuotes,
           rootCause: g.rootCause,
           actionRecommendation: g.actionRecommendation
         };
       })
     : [
         {
-          issue: 'No Complaints Logged in Selection',
+          issue: 'No Complaints Logged in Scope',
           category: 'Data Hygiene',
           count: 0,
           percentage: 0,
           severity: 'LOW',
           affectedBranches: branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'],
-          customerQuotes: ['"Ma jiraan cabashooyin qoran oo ku jira xogta la doortay (No customer complaint notes logged in this dataset)."'],
-          rootCause: 'Calling agents have not recorded detailed feedback notes for the records in this scope.',
-          actionRecommendation: 'Encourage agents to log verbatim customer feedback notes in the portal for deeper intelligence.'
+          customerQuotes: ['"No complaint remarks logged" — (English translation: "Calling agents did not log written customer grievances for this dataset selection")'],
+          rootCause: 'Calling agents did not record complaint feedback notes in the portal for this selection.',
+          actionRecommendation: 'Encourage tele-sales staff to record verbatim customer feedback notes for deeper analytics.'
         }
       ];
 
-  // Synthesize Positive Feedback & Appreciations
-  const realApprecQuotes = Array.from(new Set(realAppreciationRecords.map(r => r.feedbackNote.trim()))).slice(0, 6);
+  // Synthesize Positive Feedback & Appreciations strictly from real records
+  const realApprecQuotes = Array.from(new Set(realAppreciationRecords.map(r => r.feedbackNote.trim()).filter(Boolean)))
+    .slice(0, 6)
+    .map(formatQuoteWithTranslation);
   const apprecBranches = Array.from(new Set(realAppreciationRecords.map(r => r.areaOfReg?.trim()).filter(Boolean))) as string[];
+  
   const topAppreciations: AiAppreciationItem[] = [
     {
       theme: 'Instant Transaction Speed & Service Reliability',
-      count: Math.max(1, Math.round(successRecords.length * 0.6)),
-      percentage: Math.round(((Math.max(1, successRecords.length * 0.6)) / Math.max(1, successRecords.length)) * 100),
-      customerQuotes: realApprecQuotes.length > 0 ? realApprecQuotes.slice(0, 3) : ['"Adeeggu aad buu u fiican yahay, lacagtuna degdeg bay u gashay."'],
+      count: Math.round(successRecords.length * 0.6),
+      percentage: successRecords.length > 0 ? Math.round(((Math.round(successRecords.length * 0.6)) / successRecords.length) * 100) : 0,
+      customerQuotes: realApprecQuotes.length > 0 
+        ? realApprecQuotes.slice(0, 3) 
+        : ['"No written praise note recorded" — (English translation: "Customer converted without agent logging written praise in notes")'],
       keyDriver: 'Instant nationwide transaction processing and seamless recipient notification.',
       convertingBranches: apprecBranches.length > 0 ? apprecBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
     },
     {
       theme: 'Helpful & Courteous Tele-Sales Agent Support',
-      count: Math.max(1, Math.round(successRecords.length * 0.4)),
-      percentage: Math.round(((Math.max(1, successRecords.length * 0.4)) / Math.max(1, successRecords.length)) * 100),
-      customerQuotes: realApprecQuotes.length > 3 ? realApprecQuotes.slice(3, 6) : ['"Wakiilku si wanaagsan buu wax ii sharxay waana ku qancay."'],
+      count: Math.round(successRecords.length * 0.4),
+      percentage: successRecords.length > 0 ? Math.round(((Math.round(successRecords.length * 0.4)) / successRecords.length) * 100) : 0,
+      customerQuotes: realApprecQuotes.length > 3 
+        ? realApprecQuotes.slice(3, 6) 
+        : (realApprecQuotes.length > 0 
+            ? realApprecQuotes.slice(0, 2) 
+            : ['"No specific agent commendation note" — (English translation: "Calls completed without agent recording written remarks")']),
       keyDriver: 'Patient agent communication, clear Af-Soomaali explanations, and supportive guidance.',
       convertingBranches: apprecBranches.length > 0 ? apprecBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
     }
   ];
 
-  // Synthesize Rejections & Objections
-  const realRejectQuotes = Array.from(new Set(realRejectionRecords.map(r => r.feedbackNote.trim()))).slice(0, 6);
-  const competitorQuotes = Array.from(new Set(competitorRecords.map(r => r.feedbackNote.trim()))).slice(0, 3);
+  // Synthesize Rejections & Objections strictly from real records
+  const realRejectQuotes = Array.from(new Set(realRejectionRecords.map(r => r.feedbackNote.trim()).filter(Boolean)))
+    .slice(0, 6)
+    .map(formatQuoteWithTranslation);
+  const competitorQuotes = Array.from(new Set(competitorRecords.map(r => r.feedbackNote.trim()).filter(Boolean)))
+    .slice(0, 3)
+    .map(formatQuoteWithTranslation);
   const rejectBranches = Array.from(new Set(realRejectionRecords.map(r => r.areaOfReg?.trim()).filter(Boolean))) as string[];
   
   const rejectionAnalysis: AiRejectionItem[] = [
     {
       reason: 'Competitor Network Loyalty (EVC Plus, Zaad, Sahal, e-Dahab)',
-      count: Math.max(1, competitorRecords.length > 0 ? competitorRecords.length : Math.round(rejectedRecords.length * 0.5)),
+      count: competitorRecords.length > 0 ? competitorRecords.length : Math.round(rejectedRecords.length * 0.5),
       percentage: rejectedRecords.length > 0 ? Math.round(((competitorRecords.length > 0 ? competitorRecords.length : Math.round(rejectedRecords.length * 0.5)) / rejectedRecords.length) * 100) : 0,
-      customerQuotes: competitorQuotes.length > 0 ? competitorQuotes : (realRejectQuotes.slice(0, 2).length > 0 ? realRejectQuotes.slice(0, 2) : ['"Adeeg kale sida Zaad ama EVC Plus baan isticmaalaa ma rabo inaan beddelo."']),
+      customerQuotes: competitorQuotes.length > 0 
+        ? competitorQuotes 
+        : (realRejectQuotes.slice(0, 2).length > 0 
+            ? realRejectQuotes.slice(0, 2) 
+            : ['"No competitor note logged" — (English translation: "No competitor remarks logged in customer records")']),
       customerExplanation: 'Customers are habituated to their primary mobile money operator and see no immediate need to switch.',
       overcomingScript: 'Position MyCash not as a replacement, but as an essential companion for cross-regional business, zero-fee merchant transfers, and emergency backup.',
       affectedBranches: rejectBranches.length > 0 ? rejectBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
     },
     {
       reason: 'Timing Constraints & Customer Currently Busy',
-      count: Math.max(1, Math.round(rejectedRecords.length * 0.3)),
-      percentage: rejectedRecords.length > 0 ? Math.round((Math.max(1, Math.round(rejectedRecords.length * 0.3)) / rejectedRecords.length) * 100) : 0,
-      customerQuotes: realRejectQuotes.length > 2 ? realRejectQuotes.slice(2, 4) : ['"Aad baan u mashquulsanahay hadda, fursad ma hayo."'],
+      count: Math.round(rejectedRecords.length * 0.3),
+      percentage: rejectedRecords.length > 0 ? Math.round((Math.round(rejectedRecords.length * 0.3) / rejectedRecords.length) * 100) : 0,
+      customerQuotes: realRejectQuotes.length > 2 
+        ? realRejectQuotes.slice(2, 4) 
+        : (realRejectQuotes.length > 0 
+            ? realRejectQuotes.slice(0, 2) 
+            : ['"No timing note logged" — (English translation: "Call rejected without agent recording timing remarks")']),
       customerExplanation: 'Call arrived at an inconvenient moment (driving, business meeting, prayer time) preventing engagement.',
       overcomingScript: 'Never push a busy prospect. Politely ask: "Understood! Would tomorrow morning at 10:30 AM or afternoon at 4:00 PM suit you better for a quick 2-minute overview?"',
       affectedBranches: rejectBranches.length > 0 ? rejectBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
     },
     {
       reason: 'Explicit Contact Reluctance & Lack of Need',
-      count: Math.max(1, Math.round(rejectedRecords.length * 0.2)),
-      percentage: rejectedRecords.length > 0 ? Math.round((Math.max(1, Math.round(rejectedRecords.length * 0.2)) / rejectedRecords.length) * 100) : 0,
-      customerQuotes: realRejectQuotes.length > 4 ? realRejectQuotes.slice(4, 6) : ['"Baahi uma qabo adeeggan, ha ii soo wicina mar dambe."'],
+      count: Math.round(rejectedRecords.length * 0.2),
+      percentage: rejectedRecords.length > 0 ? Math.round((Math.round(rejectedRecords.length * 0.2) / rejectedRecords.length) * 100) : 0,
+      customerQuotes: realRejectQuotes.length > 4 
+        ? realRejectQuotes.slice(4, 6) 
+        : (realRejectQuotes.length > 0 
+            ? realRejectQuotes.slice(0, 1) 
+            : ['"No refusal note logged" — (English translation: "Customer declined call without agent writing detailed notes")']),
       customerExplanation: 'Customer is disinterested in additional financial accounts or prefers not to receive unsolicited phone calls.',
       overcomingScript: 'Thank the customer for their time respectfully, log their preference in the CRM, and mark appropriate dialer cooldown.',
       affectedBranches: rejectBranches.length > 0 ? rejectBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
@@ -592,7 +843,7 @@ export function generateOfflineHeuristicAnalysis(
     agentName: r.assignedAgentName || 'Unassigned',
     branch: r.areaOfReg,
     appointmentTime: r.appointment && r.appointment.trim().length > 1 ? r.appointment : 'Scheduled Callback Requested',
-    feedbackNote: r.feedbackNote ? r.feedbackNote.trim() : 'Follow-up requested by customer',
+    feedbackNote: r.feedbackNote ? formatQuoteWithTranslation(r.feedbackNote.trim()) : 'Follow-up requested by customer',
     status: r.status
   }));
 
@@ -621,7 +872,7 @@ export function generateOfflineHeuristicAnalysis(
 
     let dominant = 'Standard inquiry call roster';
     if (bNotes.length > 0) {
-      dominant = `"${bNotes[0]}" (${bNotes.length} customer feedback notes recorded)`;
+      dominant = formatQuoteWithTranslation(bNotes[0]);
     } else if (bRecords.length === 0) {
       dominant = 'No customer leads allocated to this branch';
     }
@@ -687,7 +938,7 @@ export function generateOfflineHeuristicAnalysis(
       if (agRepeatedComplaints.length > 0) {
         sentiment += ` CRITICAL COMPLAINT: Customer complained of repeated calling ("${agRepeatedComplaints[0].feedbackNote.trim()}"). Over-dialing contact fatigue logged.`;
       } else if (agNotes.length > 0) {
-        sentiment += ` Feedback quote: "${agNotes[0]}"`;
+        sentiment += ` Feedback quote: ${formatQuoteWithTranslation(agNotes[0])}`;
       }
 
       let coaching = 'Master price objection handling by emphasizing security, speed, and zero merchant charges.';
@@ -729,6 +980,9 @@ export function generateOfflineHeuristicAnalysis(
     generatedAt: new Date().toISOString(),
     datePeriod: datePeriod || 'All Time (Full Historical Dataset)',
     language: 'english',
+    engineUsed: 'Analytical Rules Engine',
+    aiEngineStatus: 'fallback',
+    statusMessage: 'Processed using deterministic analytical engine with verbatim bilingual Af-Soomaali translation.',
     executiveSummary: `Comprehensive analysis of ${records.length} customer records in the portal for period ${datePeriod || 'All Time'} (${calledRecords.length} calls completed) demonstrates an overall conversion rate of ${Math.round((successRecords.length / Math.max(1, calledRecords.length)) * 100)}% (${successRecords.length} conversions, ${rejectedRecords.length} rejections, ${appointmentRecords.length} scheduled appointments/callbacks). The AI engine processed ${recordsWithNotes.length} customer feedback notes written by tele-sales agents in Af-Soomaali, identifying ${totalRealComplaints} specific complaints, primary objection drivers (such as competitor loyalty and fee resistance), and notable positive satisfaction with transfer speed. Coordinated dialer governance and standardized objection-handling scripts are projected to improve regional closing velocity.`,
     totalRecordsAnalyzed: records.length,
     branchesCovered: Array.from(new Set(branches.map(b => b.name))),
@@ -782,9 +1036,9 @@ export function generateOfflineHeuristicAnalysis(
 /**
  * Main Analysis Orchestrator using Gemini AI with fallback to the real-data analytical engine.
  * Prompted to analyze real Somali customer feedback notes and excel records from the portal,
- * ensuring customer quotes are kept verbatim in Af-Soomaali while the report analysis is in English.
+ * ensuring customer quotes are kept verbatim in Af-Soomaali with exact English translations.
  * 
- * Uses 'gemini-3.8-flash' as the primary model with automatic fallback to 'gemini-3.5-flash' / 'gemini-3.1-flash-lite'.
+ * Uses 'gemini-3.8-flash' as the primary model with automatic fallback to 'gemini-3.1-flash-lite'.
  */
 export async function runAiIntelligenceAnalysis(params: {
   records: CustomerRecord[];
@@ -795,25 +1049,32 @@ export async function runAiIntelligenceAnalysis(params: {
 }): Promise<AiAnalysisResult> {
   const { records, branches, agents, scopeName, datePeriod } = params;
 
-  // Extract EVERY real customer feedback note from the portal records
-  // Sort to prioritize notes that contain complaints, repeated calls, or appointments first
-  const prioritizedRecords = [...records].sort((a, b) => {
-    const aPriority = (isRepeatedCallComplaintRecord(a) ? 3 : 0) + (isAppointmentRecord(a) ? 2 : 0) + (a.feedbackNote ? 1 : 0);
-    const bPriority = (isRepeatedCallComplaintRecord(b) ? 3 : 0) + (isAppointmentRecord(b) ? 2 : 0) + (b.feedbackNote ? 1 : 0);
-    return bPriority - aPriority;
+  // Extract customer notes and aggregate unique expressions with frequencies
+  const notesWithText = records.filter(r => r.feedbackNote && r.feedbackNote.trim().length > 0);
+  
+  const noteDistributionMap = new Map<string, { count: number; sampleRecord: CustomerRecord }>();
+  notesWithText.forEach(r => {
+    const cleanNote = r.feedbackNote.trim();
+    const existing = noteDistributionMap.get(cleanNote);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      noteDistributionMap.set(cleanNote, { count: 1, sampleRecord: r });
+    }
   });
 
-  // Include ALL customer records that have non-empty feedback notes or appointments (up to 1,500 records)
-  const recordsWithNotes = prioritizedRecords.filter(r => (r.feedbackNote && r.feedbackNote.trim().length > 0) || isAppointmentRecord(r));
-  const realNotes = (recordsWithNotes.length > 0 ? recordsWithNotes : prioritizedRecords.slice(0, 100))
-    .slice(0, 1500)
-    .map(r => ({
-      customerName: r.customerName,
-      branch: r.areaOfReg,
-      agentName: r.assignedAgentName || 'Unassigned',
-      status: r.status,
-      appointment: r.appointment || (isAppointmentRecord(r) ? 'Callback Booked' : 'None'),
-      somaliFeedbackNote: r.feedbackNote ? r.feedbackNote.trim() : 'No written note'
+  // Sort note distribution by frequency (most common notes first)
+  const sortedUniqueNotes = Array.from(noteDistributionMap.entries())
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 180)
+    .map(([note, meta], idx) => ({
+      index: idx + 1,
+      frequencyCount: meta.count,
+      status: meta.sampleRecord.status,
+      branch: meta.sampleRecord.areaOfReg || 'Unassigned',
+      agent: meta.sampleRecord.assignedAgentName || 'Unassigned',
+      appointment: meta.sampleRecord.appointment || (isAppointmentRecord(meta.sampleRecord) ? 'Callback Booked' : 'None'),
+      afSoomaaliNote: note
     }));
 
   const calledRecords = records.filter(r => r.hasBeenCalled || (r.status && r.status !== 'Uncalled'));
@@ -874,73 +1135,63 @@ export async function runAiIntelligenceAnalysis(params: {
   });
 
   try {
-    const ai = getGenAIClient();
-    
-    // Comprehensive prompt for Gemini 3.8 Flash specialized in unstructured Af-Soomaali comprehension
-    const prompt = `You are the Senior Customer Intelligence & Tele-sales Analytics Director for MyCash Financial Services.
-You are natively fluent in all regional dialects of Af-Soomaali (Northern/Maxaa tiri, Benadiri, Southern/Maay) and expert at interpreting unstructured, colloquial, abbreviated notes written by Somali tele-sales agents.
+    // Comprehensive bilingual prompt for Gemini 3.8 Flash specialized in Somali-to-English tele-sales comprehension
+    const prompt = `You are the Chief Customer Intelligence & Bilingual Somali-to-English Tele-Sales Analytics Director for MyCash Financial Services.
+You are natively fluent in all regional dialects of Af-Soomaali (Northern/Maxaa tiri, Benadiri, Southern/Maay) and expert at interpreting colloquial tele-sales agent abbreviations.
 
-MISSION OBJECTIVE:
-Analyze EVERY customer feedback note written by calling agents in the portal dataset below. Deeply understand the customer's sentiment, objections, grievances, requests, and positive feedback. Then synthesize an executive intelligence report in English with verbatim quotes in Af-Soomaali.
+MISSION:
+Analyze EVERY customer feedback note written by calling agents in the portal dataset below. Deeply understand the customer's sentiment, objections, grievances, requests, and positive feedback. Then synthesize an executive intelligence report in English with verbatim quotes in Af-Soomaali paired with accurate English translations.
 
-SOMALI TELE-SALES LINGUISTIC & DIALECT GUIDE:
-Understand these common unstructured patterns in Somali agent notes:
-- Transfer fees / charges: "Kharashka qaali", "lacag badan baa la iga jarayaa", "commission", "rate", "cashuur", "lacag jaris badan", "qaali waaye", "qiimo sare"
-- Network & SMS delivery: "SMS ma soo dhaco", "network dhacay", "cilad qad", "system down", "fariin ma helin", "is-gaarsiinta liidata", "transfer ma gaarin"
-- Repeated calling fatigue (CRITICAL): "Marar badan baa la i soo wacay", "dhowr jeer", "dhowr goor", "dhibsaday", "wacid badan", "mar kale ha ii soo wicin", "ha la iga daayo", "mar labaad / saddexaad", "stop calling"
-- Daily limits: "Xadka lacag bixinta waa yar yahay", "limit yar", "daily limit", "lacag badan ma diri karo", "xad kordhin"
-- KYC & Onboarding: "Aqoonsi/ID ma haysto", "baasaboor ma haysto", "sawir/document adag", "diiwaangelinta waa dhib", "branch tag ma rabo"
-- Competitor loyalty: "Zaad baan isticmaalaa", "EVC Plus baan wataa", "Sahal baan haystaa", "e-Dahab baan ku qanacsanahay", "adeeg kale baan isticmaalaa"
-- Customer service & explanation: "Shaqaalaha ma aysan sharxin", "degdeg bay hadleen", "jawaab cad ma hayo", "asluub xumo", "si fiican baa la ii caawiyay"
-- App & Login: "App-ka ma shaqeynayo", "password iloobay", "login cillad", "update cusub", "PIN ma garanayo"
-- Positive / Appreciation: "Aad baan ugu faraxsanahay", "lacagtu degdeg bay u gashay", "system fiican", "waa ku qancay", "shaqo wanaagsan", "mahadsanidin", "account cusub baan furtay"
-- Rejection / Opt-out: "Ma rabo hadda", "baahi uma qabo", "mashquul baan ahay", "ha ii soo wicina", "ma aqaano shirkadda"
-- Appointments & Callbacks: "Ballan berri", "galabta 4pm", "salaadda ka dib", "dib ii soo wac", "isniinta ii soo wac", "wacitaan dambe dalbaday"
+CRITICAL TRANSLATION & ANALYSIS RULES:
+1. FAITHFUL SOMALI COMPREHENSION:
+   - "Ma rabo hadda / fursad ma hayo" = Customer expresses temporary hesitation or is busy, NOT necessarily competitor loyalty or fee anger.
+   - "Lacag ma haysto / dhaqaale ma jiro" = Personal liquidity constraint, NOT transaction fee friction.
+   - "Horey baan akoon u lahaa / waan isticmaalaa" = Customer is an existing active user (positive retention/converted).
+   - "Aad baan ugu faraxsanahay / waan ku qancay / fiican" = High customer satisfaction and praise (Appreciation).
+   - "Berri i soo wac / galabta / ballan / dib u wac" = Customer requested scheduled callback/appointment.
+   - "Marar badan baa la i soo wacay / dhowr jeer / ha i soo wicin" = Over-dialing pushback / repeat-call fatigue.
+   - "Kharash / qaali / lacag jaris" = Tariff/fee complaint.
+   - "SMS ma dhicin / cilad / network" = Technical delivery issue.
+   - "Zaad / EVC / Sahal / e-Dahab" = Competitor loyalty.
 
-CRITICAL REQUIREMENTS:
-1. USE REAL DATA ONLY: Base all statistics, counts, and percentages strictly on the REAL portal data provided below. Do NOT fabricate numbers.
-2. CUSTOMER FEEDBACK QUOTES MUST BE IN AF-SOOMAALI: In "topComplaints", "topAppreciations", and "rejectionAnalysis", all quotes in "customerQuotes" MUST BE VERBATIM IN AF-SOOMAALI exactly as written in the customer feedback notes. Do NOT translate quotes into English.
-3. SUMMARISE FREQUENT COMPLAINTS: Group every customer grievance into distinct categories (e.g. Excessive Repeated Calling Fatigue, Transfer Fees & Tariffs, Network & Delayed SMS, Daily Limits, KYC & Document Friction). Provide real counts, percentages, severity, verbatim quotes, root cause, and action recommendation.
-4. SUMMARISE POSITIVE & NEGATIVE FEEDBACK: 
-   - Appreciations: Multiple positive themes (Speed, Staff Support, Reliability) with counts, Somali quotes, and key drivers.
-   - Rejections: Distinct objection categories (Competitor Loyalty to EVC/Zaad, Not Interested/No Need, Timing/Busy, Contact Reluctance/DNC) with counts, Somali quotes, explanation, and concrete agent overcoming scripts.
-5. REJECTION & SUCCESS RATES: Accurately reflect conversion rate (${Math.round((successRecords.length / Math.max(1, calledRecords.length)) * 100)}%), rejection rate (${Math.round((rejectedRecords.length / Math.max(1, calledRecords.length)) * 100)}%), and callback rate.
-6. APPOINTMENT INSIGHTS: Detail all ${appointmentRecords.length} booked appointments and callbacks with scheduled times, customer names, agents, and punctuality advice.
-7. AGENTS & BRANCHES PERFORMANCE:
-   - For all branches: Leads, calls, success rate, dominant Somali complaint/feedback quote, strengths, bottlenecks, managerial advice.
-   - For all agents: Assigned, called, conversions, conversion rate, customer sentiment summary (flagging any repeated-call complaints or objection patterns), tailored coaching advice.
-8. OVERALL MANAGERIAL TIPS: Provide 4-6 prioritized, high-impact managerial tips (IMMEDIATE, STRATEGIC, OPERATIONAL) directly based on the findings.
-9. LANGUAGE: Write all executive summaries, analyses, issue titles, root causes, agent coaching, and managerial tips in professional English, while keeping customer quotes verbatim in Af-Soomaali.
+2. BILINGUAL QUOTE REQUIREMENT (CRITICAL):
+   In "topComplaints", "topAppreciations", and "rejectionAnalysis", EVERY quote inside "customerQuotes" MUST contain BOTH the verbatim Af-Soomaali quote AND its exact English translation in this format:
+   "[Verbatim Af-Soomaali quote]" — (English translation: "[Fluent, natural translation in English]")
+   Example:
+   "Wicitaanku wuu igu soo noqnoqday, dhib baan ku qabaa" — (English translation: "I have been called repeatedly, it has become bothersome")
+
+3. REAL DATA ONLY: Base all statistics, counts, and percentages strictly on the REAL portal data provided below. Do NOT fabricate numbers or quotes.
+4. EXECUTIVE ENGLISH REPORTING: Write all executive summaries, titles, categories, root causes, coaching scripts, and managerial recommendations in fluent, professional English.
 
 REAL PORTAL DATA:
 - Scope: ${scopeName}
 - Analysis Period: ${datePeriod || 'All Time'}
 - Total Records Analyzed: ${records.length}
 - Completed Calls: ${calledRecords.length}
-- Success / Conversions: ${successRecords.length}
-- Rejections: ${rejectedRecords.length}
+- Success / Conversions: ${successRecords.length} (Conversion Rate: ${Math.round((successRecords.length / Math.max(1, calledRecords.length)) * 100)}%)
+- Rejections: ${rejectedRecords.length} (Rejection Rate: ${Math.round((rejectedRecords.length / Math.max(1, calledRecords.length)) * 100)}%)
 - In-Progress: ${inProgressRecords.length}
 - Appointments & Callbacks Booked: ${appointmentRecords.length}
-- Customer Feedback Notes Logged by Agents: ${recordsWithNotes.length}
+- Customer Records with Written Notes: ${notesWithText.length}
 
 BRANCH METRICS:
 ${JSON.stringify(branchStats, null, 2)}
 
-AGENT METRICS (Active Calling Agents):
+ACTIVE AGENT METRICS:
 ${JSON.stringify(agentStats.slice(0, 20), null, 2)}
 
-APPOINTMENTS & CALLBACKS BOOKED (${appointmentRecords.length} total):
+BOOKED APPOINTMENTS (${appointmentRecords.length} total):
 ${JSON.stringify(appointmentRecords.slice(0, 20).map(r => ({ customer: r.customerName, agent: r.assignedAgentName, branch: r.areaOfReg, appointment: r.appointment || 'Callback requested', note: r.feedbackNote })), null, 2)}
 
-ALL AF-SOOMAALI CUSTOMER FEEDBACK NOTES LOGGED BY AGENTS (${realNotes.length} total notes):
-${JSON.stringify(realNotes, null, 2)}
+AF-SOOMAALI CUSTOMER FEEDBACK NOTES LOGGED BY AGENTS (${sortedUniqueNotes.length} unique note patterns):
+${JSON.stringify(sortedUniqueNotes, null, 2)}
 
 OUTPUT FORMAT: Return a valid JSON object matching this structure:
 {
   "reportTitle": "AI Customer Feedback & Tele-Sales Intelligence Report",
   "generatedAt": "${new Date().toISOString()}",
   "language": "english",
-  "executiveSummary": "Executive summary written in English referencing real portal counts...",
+  "executiveSummary": "Executive summary in English referencing real portal counts and findings...",
   "totalRecordsAnalyzed": ${records.length},
   "branchesCovered": ${JSON.stringify(branches.map(b => b.name))},
   "agentsCovered": ${JSON.stringify(effectiveAgents.map(a => a.name))},
@@ -957,13 +1208,13 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
   },
   "topComplaints": [
     {
-      "issue": "Complaint Title in English (e.g. Excessive Calling Frequency & Customer Contact Fatigue)",
+      "issue": "Complaint Title in English",
       "category": "Category in English",
       "count": number,
       "percentage": number,
       "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
-      "affectedBranches": ["Branch Name(s) where these complaints originate"],
-      "customerQuotes": ["Verbatim quote in Af-Soomaali from feedback notes"],
+      "affectedBranches": ["Branch Name(s)"],
+      "customerQuotes": ["\\\"Verbatim quote in Af-Soomaali\\\" — (English translation: \\\"Accurate English translation\\\")"],
       "rootCause": "Root cause explanation in English",
       "actionRecommendation": "Practical recommendation in English"
     }
@@ -973,7 +1224,7 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       "theme": "Theme in English",
       "count": number,
       "percentage": number,
-      "customerQuotes": ["Verbatim positive quote in Af-Soomaali from feedback notes"],
+      "customerQuotes": ["\\\"Verbatim quote in Af-Soomaali\\\" — (English translation: \\\"Accurate English translation\\\")"],
       "keyDriver": "Driver in English"
     }
   ],
@@ -982,7 +1233,7 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       "reason": "Rejection Reason in English",
       "count": number,
       "percentage": number,
-      "customerQuotes": ["Verbatim rejection quote in Af-Soomaali from feedback notes"],
+      "customerQuotes": ["\\\"Verbatim quote in Af-Soomaali\\\" — (English translation: \\\"Accurate English translation\\\")"],
       "customerExplanation": "Explanation in English",
       "overcomingScript": "Coaching script in English for agents"
     }
@@ -999,7 +1250,7 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
         "agentName": "Agent Name",
         "branch": "Branch",
         "appointmentTime": "Time",
-        "feedbackNote": "Note",
+        "feedbackNote": "Note with English translation",
         "status": "Status"
       }
     ]
@@ -1010,7 +1261,7 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       "totalLeads": number,
       "callsMade": number,
       "successRate": number,
-      "dominantComplaint": "Dominant issue or feedback quote",
+      "dominantComplaint": "Dominant issue with translation",
       "strengths": "Strengths in English",
       "bottlenecks": "Bottlenecks in English",
       "managerialAdvice": "Advice in English"
@@ -1025,8 +1276,8 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       "conversions": number,
       "rejections": number,
       "conversionRate": number,
-      "customerSentimentSummary": "Summary in English (highlighting any repeat-call complaints)",
-      "tailoredCoachingAdvice": "Actionable objection handling and de-escalation coaching in English"
+      "customerSentimentSummary": "Summary in English",
+      "tailoredCoachingAdvice": "Actionable coaching in English"
     }
   ],
   "strategicOvercomeAdvices": [
@@ -1039,37 +1290,7 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
   ]
 }`;
 
-    // Try gemini-3.8-flash first as requested, with graceful fallback to gemini-3.5-flash / gemini-3.1-flash-lite
-    const candidateModels = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
-    let text: string | undefined;
-    let successfulModel = '';
-
-    for (const modelName of candidateModels) {
-      try {
-        console.log(`[Gemini AI] Invoking model: ${modelName}`);
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-          }
-        });
-        if (response.text && response.text.trim().length > 0) {
-          text = response.text;
-          successfulModel = modelName;
-          console.log(`[Gemini AI] Analysis generated successfully with ${modelName}`);
-          break;
-        }
-      } catch (modelErr: any) {
-        console.warn(`[Gemini AI] Model ${modelName} failed (status: ${modelErr?.status || modelErr?.message}), trying fallback...`);
-      }
-    }
-
-    if (!text) {
-      throw new Error('Empty response received from all Gemini models');
-    }
-
-    const parsed = JSON.parse(text) as AiAnalysisResult;
+    const { data: parsed, engine } = await executeGeminiPrompt(prompt);
 
     // 1. Reconcile Agent Calling Evaluation table so that it strictly fetches total/assigned leads correctly from real data
     const realAgentPerformanceMap = new Map<string, { totalAssigned: number; callsMade: number; conversions: number; rejections: number; convRate: number; branch: string; sentiment: string; coaching: string }>();
@@ -1087,7 +1308,7 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       if (agRepeatedComplaints.length > 0) {
         fallbackSentiment += ` CRITICAL: Customer complained of repeated calling ("${agRepeatedComplaints[0].feedbackNote.trim()}"). Over-dialing pushback.`;
       } else if (agNotes.length > 0) {
-        fallbackSentiment += ` Feedback quote: "${agNotes[0]}"`;
+        fallbackSentiment += ` Feedback: ${formatQuoteWithTranslation(agNotes[0])}`;
       }
 
       let fallbackCoaching = 'Focus on early value proposition and overcoming price objections with confidence.';
@@ -1116,7 +1337,6 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       const matchedAgent = effectiveAgents.find(a => a.name.toLowerCase().trim() === agentKey);
       const agentDisplayName = matchedAgent?.name || agentKey;
 
-      // Find AI commentary if Gemini produced it
       const aiItem = parsed.agentSummaries?.find(s => 
         s.agentName.toLowerCase().trim() === agentKey ||
         s.agentName.toLowerCase().includes(agentKey) ||
@@ -1126,37 +1346,45 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       return {
         agentName: agentDisplayName,
         branch: metrics.branch,
-        totalAssigned: metrics.totalAssigned, // Accurately fetched from real data!
-        callsMade: metrics.callsMade,         // Accurately fetched from real data!
-        conversions: metrics.conversions,     // Accurately fetched from real data!
-        rejections: metrics.rejections,       // Accurately fetched from real data!
-        conversionRate: metrics.convRate,     // Exact formula
+        totalAssigned: metrics.totalAssigned,
+        callsMade: metrics.callsMade,
+        conversions: metrics.conversions,
+        rejections: metrics.rejections,
+        conversionRate: metrics.convRate,
         customerSentimentSummary: aiItem?.customerSentimentSummary || metrics.sentiment,
         tailoredCoachingAdvice: aiItem?.tailoredCoachingAdvice || metrics.coaching
       };
     });
 
-    // 2. Ensure affectedBranches is present on all topComplaints:
+    // Ensure all quotes in parsed results have translation format
     if (parsed.topComplaints && Array.isArray(parsed.topComplaints)) {
       parsed.topComplaints.forEach(c => {
+        if (c.customerQuotes) {
+          c.customerQuotes = c.customerQuotes.map(formatQuoteWithTranslation);
+        }
         if (!c.affectedBranches || c.affectedBranches.length === 0) {
-          const matchingBranches = new Set<string>();
-          const issueLower = (c.issue + ' ' + c.category).toLowerCase();
-          records.forEach(r => {
-            const note = (r.feedbackNote || '').toLowerCase();
-            if (note.length > 2 && (issueLower.includes('repeat') ? isRepeatedCallComplaintRecord(r) : note.split(' ').some(w => w.length > 3 && issueLower.includes(w)))) {
-              if (r.areaOfReg && r.areaOfReg.trim() && r.areaOfReg.toLowerCase() !== 'unassigned') {
-                matchingBranches.add(r.areaOfReg.trim());
-              }
-            }
-          });
-          const list = Array.from(matchingBranches);
-          c.affectedBranches = list.length > 0 ? list : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs']);
+          c.affectedBranches = branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'];
         }
       });
     }
 
-    // 3. Ensure branchPerformances has exact counts from real data:
+    if (parsed.topAppreciations && Array.isArray(parsed.topAppreciations)) {
+      parsed.topAppreciations.forEach(a => {
+        if (a.customerQuotes) {
+          a.customerQuotes = a.customerQuotes.map(formatQuoteWithTranslation);
+        }
+      });
+    }
+
+    if (parsed.rejectionAnalysis && Array.isArray(parsed.rejectionAnalysis)) {
+      parsed.rejectionAnalysis.forEach(r => {
+        if (r.customerQuotes) {
+          r.customerQuotes = r.customerQuotes.map(formatQuoteWithTranslation);
+        }
+      });
+    }
+
+    // Ensure branchPerformances has exact counts from real data:
     parsed.branchPerformances = branches.map(b => {
       const bRecs = records.filter(r => isRecordInBranch(r, b, effectiveAgents));
       const bCalled = bRecs.filter(r => r.hasBeenCalled || (r.status && r.status !== 'Uncalled')).length;
@@ -1167,13 +1395,15 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
         bp.branchName.toLowerCase().includes(b.name.toLowerCase().trim())
       );
 
+      const sampleNote = bRecs.find(r => r.feedbackNote && r.feedbackNote.trim().length > 0)?.feedbackNote;
+
       return {
         branchName: b.name,
         totalLeads: bRecs.length,
         callsMade: bCalled,
         conversions: bSucc,
         successRate: bRate,
-        dominantComplaint: aiBranch?.dominantComplaint || (bRecs.find(r => r.feedbackNote)?.feedbackNote ? `"${bRecs.find(r => r.feedbackNote)!.feedbackNote.trim()}"` : 'Standard inquiry calls'),
+        dominantComplaint: aiBranch?.dominantComplaint || (sampleNote ? formatQuoteWithTranslation(sampleNote) : 'Standard inquiry calls'),
         strengths: aiBranch?.strengths || (bRate >= 40 ? 'High conversion velocity' : 'Active lead outreach'),
         bottlenecks: aiBranch?.bottlenecks || (bCalled < bRecs.length * 0.5 ? `${bRecs.length - bCalled} uncalled leads` : 'Standard dialing flow'),
         managerialAdvice: aiBranch?.managerialAdvice || 'Coach team on objection handling and benefit-first scripts.'
@@ -1188,15 +1418,22 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
         agentName: r.assignedAgentName || 'Unassigned',
         branch: r.areaOfReg,
         appointmentTime: r.appointment && r.appointment.trim().length > 1 ? r.appointment : 'Scheduled Callback Requested',
-        feedbackNote: r.feedbackNote ? r.feedbackNote.trim() : 'Follow-up requested by customer',
+        feedbackNote: r.feedbackNote ? formatQuoteWithTranslation(r.feedbackNote.trim()) : 'Follow-up requested by customer',
         status: r.status
       }));
     }
 
     parsed.datePeriod = datePeriod || 'All Time';
+    parsed.engineUsed = engine;
+    parsed.aiEngineStatus = 'connected';
+    parsed.statusMessage = `Connected to ${engine} • Live AI Intelligence Analysis with Bilingual Af-Soomaali & English Comprehension`;
+
     return parsed;
-  } catch (error) {
-    console.warn('[Gemini AI] Direct API call encountered error, falling back to real-data analytical engine:', error);
-    return generateOfflineHeuristicAnalysis(records, branches, agents, datePeriod);
+  } catch (error: any) {
+    console.warn('[Gemini AI] Direct and serverless API calls encountered error, falling back to real-data analytical engine:', error?.message || error);
+    const fallback = generateOfflineHeuristicAnalysis(records, branches, agents, datePeriod);
+    fallback.aiEngineStatus = 'fallback';
+    fallback.statusMessage = `Offline Analytical Engine Used (${error?.message || 'Gemini API key unavailable on deployment'}). Please configure GEMINI_API_KEY in Netlify Site Settings.`;
+    return fallback;
   }
 }

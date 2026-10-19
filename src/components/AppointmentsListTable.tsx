@@ -63,8 +63,6 @@ export const AppointmentsListTable: React.FC<AppointmentsListTableProps> = ({
             <tr className="bg-slate-50/90 text-slate-600 font-bold uppercase tracking-wider text-[9px] sm:text-[10px] border-b border-slate-200/80">
               {type === 'upcoming' ? (
                 <>
-                  {/* Action Column in front */}
-                  <th className="py-2.5 px-3 text-center whitespace-nowrap min-w-[130px]">Action</th>
                   <th className="py-2.5 px-3 whitespace-nowrap min-w-[160px]">Customer Name</th>
                   <th className="py-2.5 px-3 whitespace-nowrap">Phone</th>
                   <th className="py-2.5 px-3 whitespace-nowrap">Scheduled Callback</th>
@@ -72,6 +70,8 @@ export const AppointmentsListTable: React.FC<AppointmentsListTableProps> = ({
                   {isSupervisorOrHQ && <th className="py-2.5 px-3 whitespace-nowrap">Assigned Agent</th>}
                   <th className="py-2.5 px-3 min-w-[150px] max-w-[220px]">Feedback / Notes</th>
                   <th className="py-2.5 px-3 min-w-[150px] max-w-[220px]">Supervisor Note</th>
+                  {/* Action Column on the right side */}
+                  <th className="py-2.5 px-3 text-center whitespace-nowrap min-w-[130px]">Action</th>
                 </>
               ) : (
                 <>
@@ -107,35 +107,7 @@ export const AppointmentsListTable: React.FC<AppointmentsListTableProps> = ({
                 if (type === 'upcoming') {
                   return (
                     <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
-                      {/* ACTION BUTTON IN FRONT (CSS selector 1 target) */}
-                      <td className="py-2.5 px-3 text-center align-middle whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5 flex-nowrap">
-                          {onMarkAsCalled && (
-                            <button
-                              type="button"
-                              onClick={() => onMarkAsCalled(r)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-md font-semibold text-[10px] sm:text-[10.5px] shadow-2xs transition-all cursor-pointer active:scale-95 whitespace-nowrap"
-                              title="Mark this customer as called and log customer feedback note"
-                            >
-                              <PhoneCall className="w-3 h-3 shrink-0" />
-                              <span>Mark as Called</span>
-                            </button>
-                          )}
-                          {isSupervisorOrHQ && onReassign && (
-                            <button
-                              type="button"
-                              onClick={() => onReassign(r)}
-                              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/80 rounded-md font-semibold text-[10px] sm:text-[10.5px] transition-colors cursor-pointer whitespace-nowrap"
-                              title="Reassign appointment to another agent"
-                            >
-                              <UserCheck className="w-3 h-3 shrink-0" />
-                              <span>Reassign</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Customer Name & Status Badge (CSS selector 2 and 3 target) */}
+                      {/* Customer Name & Status Badge */}
                       <td className="py-2.5 px-3 align-middle">
                         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                           <button
@@ -218,6 +190,34 @@ export const AppointmentsListTable: React.FC<AppointmentsListTableProps> = ({
                         ) : (
                           <span className="text-slate-400 italic text-[10.5px]">—</span>
                         )}
+                      </td>
+
+                      {/* ACTION BUTTON ON RIGHT SIDE */}
+                      <td className="py-2.5 px-3 text-center align-middle whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                          {onMarkAsCalled && (
+                            <button
+                              type="button"
+                              onClick={() => onMarkAsCalled(r)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-md font-semibold text-[10px] sm:text-[10.5px] shadow-2xs transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+                              title="Mark this customer as called and log customer feedback note"
+                            >
+                              <PhoneCall className="w-3 h-3 shrink-0" />
+                              <span>Mark as Called</span>
+                            </button>
+                          )}
+                          {isSupervisorOrHQ && onReassign && (
+                            <button
+                              type="button"
+                              onClick={() => onReassign(r)}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/80 rounded-md font-semibold text-[10px] sm:text-[10.5px] transition-colors cursor-pointer whitespace-nowrap"
+                              title="Reassign appointment to another agent"
+                            >
+                              <UserCheck className="w-3 h-3 shrink-0" />
+                              <span>Reassign</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

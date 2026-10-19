@@ -2343,12 +2343,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </p>
             </div>
 
-            {/* Subtab Pills */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs self-start md:self-auto flex-wrap">
+            {/* Subtab Pills - Responsive on Mobile */}
+            <div className="w-full sm:w-auto overflow-x-auto no-scrollbar flex items-center gap-1 sm:gap-1.5 bg-slate-100 p-1 sm:p-1.5 rounded-xl border border-slate-200 text-xs shrink-0">
               <button
                 type="button"
                 onClick={() => setAppSubTab('upcoming')}
-                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
+                className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
                   appSubTab === 'upcoming'
                     ? 'bg-white text-slate-900 shadow-2xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -2366,7 +2366,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setAppSubTab('previous')}
-                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
+                className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 text-[10.5px] sm:text-xs ${
                   appSubTab === 'previous'
                     ? 'bg-emerald-600 text-white shadow-2xs'
                     : 'text-emerald-800 hover:text-emerald-950 bg-emerald-50 border border-emerald-200'

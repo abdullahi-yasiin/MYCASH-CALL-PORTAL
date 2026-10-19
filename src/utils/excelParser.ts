@@ -6,6 +6,11 @@ export interface ParsedRow {
   customerName: string;
   phoneNumber: string;
   areaOfReg: string;
+  regDate?: string;
+  totalTransactions?: number;
+  firstTransDate?: string;
+  lastTransDate?: string;
+  dormantDays?: number;
   callDate: string;
   status: CallStatus;
   appointment: string;
@@ -25,11 +30,16 @@ export interface ParseResult {
   missingRequiredHeaders: string[];
 }
 
-// Canonical schema headers
+// Canonical schema headers with new transaction & registration columns between Area/Branch and Call Date
 export const EXPECTED_HEADERS = [
   'Customer Name',
   'Phone Number',
   'Area of Reg.',
+  'Reg. Date',
+  'Total Transactions',
+  'First Trans. Date',
+  'Last Trans. Date',
+  'Dormant Days',
   'Call Date',
   'Status',
   'Appointment / Callback',
@@ -80,6 +90,43 @@ export function normalizeStatus(val: string, appointmentVal?: string): CallStatu
   return 'Uncalled';
 }
 
+export function parseDateCell(rawCell: any): string {
+  if (!rawCell && rawCell !== 0) return '';
+  if (rawCell instanceof Date) {
+    return rawCell.toISOString().slice(0, 10);
+  }
+  if (typeof rawCell === 'number' && rawCell > 20000 && rawCell < 60000) {
+    try {
+      const jsDate = new Date((rawCell - 25569) * 86400 * 1000);
+      return jsDate.toISOString().slice(0, 10);
+    } catch {
+      return String(rawCell).trim();
+    }
+  }
+  const str = String(rawCell || '').trim();
+  if (str.includes('T')) {
+    return str.split('T')[0];
+  }
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  return str;
+}
+
+export function parseNumberCell(rawCell: any): number {
+  if (rawCell === undefined || rawCell === null || rawCell === '') return 0;
+  if (typeof rawCell === 'number') {
+    return isNaN(rawCell) ? 0 : Math.max(0, Math.round(rawCell));
+  }
+  const clean = String(rawCell).replace(/[^\d.-]/g, '');
+  const parsed = parseInt(clean, 10);
+  return isNaN(parsed) ? 0 : Math.max(0, parsed);
+}
+
 export async function parseExcelOrCsvFile(file: File): Promise<ParseResult> {
   const data = await file.arrayBuffer();
   const workbook = XLSX.read(data, { type: 'array', cellDates: true });
@@ -110,12 +157,28 @@ export async function parseExcelOrCsvFile(file: File): Promise<ParseResult> {
   const rawHeaders: string[] = (rawMatrix[headerRowIndex] || []).map((h: any) => String(h || '').trim());
   const normalizedHeaders = rawHeaders.map(h => h.toLowerCase());
 
-  // Find column indices by fuzzy match
-  const findColIndex = (candidates: string[]) => {
+  // Find column indices by strict-then-fuzzy match
+  const findColIndex = (candidates: string[], excludeIndices: number[] = []) => {
+    const cleanCand = candidates.map(c => c.toLowerCase().trim());
+    // 1. Exact match pass
     for (let i = 0; i < normalizedHeaders.length; i++) {
+      if (excludeIndices.includes(i)) continue;
       const header = normalizedHeaders[i];
-      if (candidates.some(c => header === c.toLowerCase() || header.includes(c.toLowerCase()) || c.toLowerCase().includes(header))) {
+      if (cleanCand.includes(header)) {
         return i;
+      }
+    }
+    // 2. Substring match pass
+    for (let i = 0; i < normalizedHeaders.length; i++) {
+      if (excludeIndices.includes(i)) continue;
+      const header = normalizedHeaders[i];
+      for (const c of cleanCand) {
+        if (c.length >= 4 && (header.includes(c) || c.includes(header))) {
+          // Prevent generic date search matching reg. date or trans date
+          if (c.includes('call') && (header.includes('reg') || header.includes('trans'))) continue;
+          if (c.includes('reg') && header.includes('trans')) continue;
+          return i;
+        }
       }
     }
     return -1;
@@ -124,7 +187,27 @@ export async function parseExcelOrCsvFile(file: File): Promise<ParseResult> {
   const nameIdx = findColIndex(['customer name', 'client name', 'full name', 'name', 'customer', 'client', 'magaca', 'magaca macmiilka']);
   const phoneIdx = findColIndex(['phone number', 'phone', 'mobile', 'cell', 'contact number', 'tel', 'telefoon', 'lambarka']);
   const areaIdx = findColIndex(['area of reg.', 'area of reg', 'area', 'region', 'branch', 'location', 'gobolka', 'laanta']);
-  const callDateIdx = findColIndex(['call date', 'date of contact', 'contact date', 'date', 'taariikh', 'taariikhda']);
+  
+  // New transaction & registration columns (positioned between Area/Branch and Call Date)
+  const regDateIdx = findColIndex([
+    'reg. date', 'reg date', 'registration date', 'date of registration', 'reg_date', 'taariikhda diiwaangalinta', 'diiwaangalin'
+  ]);
+  const totalTransIdx = findColIndex([
+    'total transactions', 'total transaction', 'transactions', 'trans count', 'total trans', 'wadarta wax kala iibsiga', 'kala iibsi', 'total_transactions'
+  ]);
+  const firstTransDateIdx = findColIndex([
+    'first trans. date', 'first trans date', 'first transaction date', 'first transaction', 'first_trans_date', 'taariikhda ugu horreysa', 'first trans'
+  ]);
+  const lastTransDateIdx = findColIndex([
+    'last trans. date', 'last trans date', 'last transaction date', 'last transaction', 'last_trans_date', 'taariikhda ugu dambeysa', 'last trans'
+  ]);
+  const dormantDaysIdx = findColIndex([
+    'dormant days', 'dormant', 'days dormant', 'inactivity days', 'dormancy', 'dormant_days', 'maalmaha aan la isticmaalin'
+  ]);
+
+  // Exclude previously matched date columns when resolving call date
+  const dateExcluded = [nameIdx, phoneIdx, areaIdx, regDateIdx, totalTransIdx, firstTransDateIdx, lastTransDateIdx, dormantDaysIdx].filter(i => i !== -1);
+  const callDateIdx = findColIndex(['call date', 'date of contact', 'contact date', 'call_date', 'taariikhda wacitaanka', 'taariikhda wicitaanka', 'date of call', 'call'], dateExcluded);
   const statusIdx = findColIndex(['status', 'call status', 'outcome', 'xaalada', 'natiijada', 'state']);
   
   // Robust Appointment & Callback synonyms in English & Af-Soomaali
@@ -184,7 +267,15 @@ export async function parseExcelOrCsvFile(file: File): Promise<ParseResult> {
 
     // Area of registration with graceful fallback to Headquarters so rows are not dropped
     const areaOfReg = (areaIdx !== -1 ? String(row[areaIdx] || '').trim() : '') || 'Headquarters';
-    let callDate = callDateIdx !== -1 ? String(row[callDateIdx] || '').trim() : '';
+    
+    // Parse the 5 new registration & transaction fields
+    const regDate = regDateIdx !== -1 ? parseDateCell(row[regDateIdx]) : '';
+    const totalTransactions = totalTransIdx !== -1 ? parseNumberCell(row[totalTransIdx]) : 0;
+    const firstTransDate = firstTransDateIdx !== -1 ? parseDateCell(row[firstTransDateIdx]) : '';
+    const lastTransDate = lastTransDateIdx !== -1 ? parseDateCell(row[lastTransDateIdx]) : '';
+    const dormantDays = dormantDaysIdx !== -1 ? parseNumberCell(row[dormantDaysIdx]) : 0;
+
+    let callDate = callDateIdx !== -1 ? parseDateCell(row[callDateIdx]) : '';
     let statusStr = statusIdx !== -1 ? String(row[statusIdx] || '').trim() : '';
     
     // Parse Appointment cell with type safety
@@ -246,6 +337,11 @@ export async function parseExcelOrCsvFile(file: File): Promise<ParseResult> {
       customerName,
       phoneNumber,
       areaOfReg,
+      regDate,
+      totalTransactions,
+      firstTransDate,
+      lastTransDate,
+      dormantDays,
       callDate,
       status,
       appointment,
@@ -279,6 +375,11 @@ export function generateSampleExcelTemplate(): void {
     'Customer Name',
     'Phone Number',
     'Area of Reg.',
+    'Reg. Date',
+    'Total Transactions',
+    'First Trans. Date',
+    'Last Trans. Date',
+    'Dormant Days',
     'Call Date',
     'Status',
     'Appointment / Callback',
@@ -292,6 +393,11 @@ export function generateSampleExcelTemplate(): void {
       'Abdi Hassan Ali',
       '+252 61 5991122',
       'Mogadishu Central',
+      '2025-04-12',
+      24,
+      '2025-04-15',
+      '2026-06-20',
+      120,
       '2026-09-22',
       'In-progress',
       '2026-09-25 10:00',
@@ -303,6 +409,11 @@ export function generateSampleExcelTemplate(): void {
       'Sahra Ahmed Nuur',
       '+252 61 8844221',
       'Mogadishu Central',
+      '2024-11-05',
+      5,
+      '2024-11-08',
+      '2025-08-14',
+      430,
       '2026-09-23',
       'Rejected',
       '',
@@ -314,6 +425,11 @@ export function generateSampleExcelTemplate(): void {
       'Nimco Osman Warsame',
       '+252 63 4882233',
       'Hargeisa North',
+      '2026-01-18',
+      1,
+      '2026-01-20',
+      '2026-01-20',
+      270,
       '',
       'Uncalled',
       '',
@@ -325,6 +441,11 @@ export function generateSampleExcelTemplate(): void {
       'Mohamed Farah Egal',
       '+252 90 7113344',
       'Garowe Commercial Hub',
+      '2023-08-19',
+      88,
+      '2023-08-20',
+      '2026-05-10',
+      160,
       '2026-09-21',
       'Success',
       '2026-09-24 14:30',
@@ -341,6 +462,11 @@ export function generateSampleExcelTemplate(): void {
     { wch: 24 }, // Customer Name
     { wch: 18 }, // Phone Number
     { wch: 22 }, // Area of Reg.
+    { wch: 14 }, // Reg. Date
+    { wch: 18 }, // Total Transactions
+    { wch: 16 }, // First Trans. Date
+    { wch: 16 }, // Last Trans. Date
+    { wch: 14 }, // Dormant Days
     { wch: 14 }, // Call Date
     { wch: 14 }, // Status
     { wch: 22 }, // Appointment / Callback

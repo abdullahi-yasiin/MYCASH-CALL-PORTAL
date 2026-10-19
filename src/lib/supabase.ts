@@ -57,11 +57,29 @@ export function toDBCustomerRecord(record: CustomerRecord) {
     finalSupervisorNote = `[SUP_ASSIGN:${JSON.stringify(metaPayload)}] ${cleanNote}`.trim();
   }
 
+  // Also embed transaction metrics metadata tag if values are provided so they survive any schema state
+  if (record.regDate || record.totalTransactions !== undefined || record.firstTransDate || record.lastTransDate || record.dormantDays !== undefined) {
+    const transMeta = {
+      regDate: record.regDate || '',
+      totalTrans: record.totalTransactions ?? 0,
+      firstTransDate: record.firstTransDate || '',
+      lastTransDate: record.lastTransDate || '',
+      dormantDays: record.dormantDays ?? 0
+    };
+    finalSupervisorNote = finalSupervisorNote.replace(/^\[TRANS_METRICS:[^\]]+\]\s*/, '').trim();
+    finalSupervisorNote = `[TRANS_METRICS:${JSON.stringify(transMeta)}] ${finalSupervisorNote}`.trim();
+  }
+
   return {
     id: record.id,
     customer_name: record.customerName,
     phone_number: record.phoneNumber,
     area_of_reg: record.areaOfReg,
+    reg_date: record.regDate || '',
+    total_transactions: Number(record.totalTransactions ?? 0),
+    first_trans_date: record.firstTransDate || '',
+    last_trans_date: record.lastTransDate || '',
+    dormant_days: Number(record.dormantDays ?? 0),
     call_date: record.callDate,
     status: record.status,
     appointment: record.appointment || '',
@@ -104,6 +122,34 @@ export function fromDBCustomerRecord(row: any): CustomerRecord {
     }
   }
 
+  let regDate = row.reg_date || row.regDate || '';
+  let totalTransactions = row.total_transactions !== undefined && row.total_transactions !== null 
+    ? Number(row.total_transactions) 
+    : (row.totalTransactions !== undefined ? Number(row.totalTransactions) : 0);
+  let firstTransDate = row.first_trans_date || row.firstTransDate || '';
+  let lastTransDate = row.last_trans_date || row.lastTransDate || '';
+  let dormantDays = row.dormant_days !== undefined && row.dormant_days !== null 
+    ? Number(row.dormant_days) 
+    : (row.dormantDays !== undefined ? Number(row.dormantDays) : 0);
+
+  // Extract embedded [TRANS_METRICS:...] tag from supervisorNote if present
+  if (typeof supervisorNote === 'string') {
+    const transMatch = supervisorNote.match(/\[TRANS_METRICS:([^\]]+)\]/);
+    if (transMatch) {
+      try {
+        const parsed = JSON.parse(transMatch[1]);
+        if (!regDate && parsed.regDate) regDate = parsed.regDate;
+        if (!totalTransactions && parsed.totalTrans !== undefined) totalTransactions = Number(parsed.totalTrans);
+        if (!firstTransDate && parsed.firstTransDate) firstTransDate = parsed.firstTransDate;
+        if (!lastTransDate && parsed.lastTransDate) lastTransDate = parsed.lastTransDate;
+        if (!dormantDays && parsed.dormantDays !== undefined) dormantDays = Number(parsed.dormantDays);
+        supervisorNote = supervisorNote.replace(transMatch[0], '').trim();
+      } catch (e) {
+        // ignore parse error
+      }
+    }
+  }
+
   // Heuristic fallback: check if supervisorNote text itself indicates supervisor assignment
   if (!appointmentAssignedBySupervisor && !reassignedFromAgentId && typeof supervisorNote === 'string') {
     const lower = supervisorNote.toLowerCase();
@@ -122,6 +168,11 @@ export function fromDBCustomerRecord(row: any): CustomerRecord {
     customerName: row.customer_name || row.customerName || '',
     phoneNumber: row.phone_number || row.phoneNumber || '',
     areaOfReg: row.area_of_reg || row.areaOfReg || 'General',
+    regDate: regDate,
+    totalTransactions: totalTransactions,
+    firstTransDate: firstTransDate,
+    lastTransDate: lastTransDate,
+    dormantDays: dormantDays,
     callDate: row.call_date || row.callDate || '',
     status: row.status || 'Uncalled',
     appointment: row.appointment || '',
@@ -335,13 +386,32 @@ export const supabaseDb = {
     }
   },
 
-  // Upsert a customer record
+  // Check if new transaction & registration columns exist in the remote Supabase database
+  async checkTransactionColumnsExist(): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('customer_records').select('reg_date').limit(1);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
+  // Upsert a customer record (with schema-adaptive fallback)
   async upsertCustomer(record: CustomerRecord): Promise<boolean> {
     try {
       const row = toDBCustomerRecord(record);
-      const { error } = await supabase
+      let { error } = await supabase
         .from('customer_records')
         .upsert(row, { onConflict: 'id' });
+
+      // If database columns have not been migrated yet, retry with base schema (data is safely preserved in supervisor_note tag)
+      if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('schema cache'))) {
+        const { reg_date, total_transactions, first_trans_date, last_trans_date, dormant_days, ...baseRow } = row as any;
+        const fallback = await supabase
+          .from('customer_records')
+          .upsert(baseRow, { onConflict: 'id' });
+        error = fallback.error;
+      }
 
       if (error) {
         console.warn('Supabase upsertCustomer notice:', error.message);
@@ -354,7 +424,7 @@ export const supabaseDb = {
     }
   },
 
-  // Batch insert/upsert records with chunked uploads
+  // Batch insert/upsert records with chunked uploads and schema-adaptive fallback
   async batchUpsertCustomers(records: CustomerRecord[]): Promise<boolean> {
     try {
       if (records.length === 0) return true;
@@ -363,9 +433,21 @@ export const supabaseDb = {
       
       for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
         const chunk = rows.slice(i, i + CHUNK_SIZE);
-        const { error } = await supabase
+        let { error } = await supabase
           .from('customer_records')
           .upsert(chunk, { onConflict: 'id' });
+
+        // If database columns have not been migrated yet, retry with base schema (data is safely preserved in supervisor_note tag)
+        if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('schema cache'))) {
+          const baseChunk = chunk.map(r => {
+            const { reg_date, total_transactions, first_trans_date, last_trans_date, dormant_days, ...baseRow } = r as any;
+            return baseRow;
+          });
+          const fallback = await supabase
+            .from('customer_records')
+            .upsert(baseChunk, { onConflict: 'id' });
+          error = fallback.error;
+        }
 
         if (error) {
           console.warn('Supabase batchUpsertCustomers notice on chunk:', error.message);
@@ -819,16 +901,21 @@ export const supabaseDb = {
   },
 };
 
-// SQL Schema for the user to run in Supabase SQL Editor if creating from scratch
+// SQL Schema for the user to run in Supabase SQL Editor if creating from scratch or migrating
 export const SUPABASE_SQL_SCHEMA = `-- MYCASH Calling Portal Database Schema for Supabase
 -- Run this in your Supabase SQL Editor (https://supabase.com/dashboard/project/mtrcifsbctzcmjefbsut/sql)
 
--- 1. Create customer_records table
+-- 1. Create customer_records table (with Transaction & Registration columns)
 CREATE TABLE IF NOT EXISTS public.customer_records (
     id TEXT PRIMARY KEY,
     customer_name TEXT NOT NULL,
     phone_number TEXT NOT NULL,
     area_of_reg TEXT DEFAULT 'General',
+    reg_date TEXT DEFAULT '',
+    total_transactions INTEGER DEFAULT 0,
+    first_trans_date TEXT DEFAULT '',
+    last_trans_date TEXT DEFAULT '',
+    dormant_days INTEGER DEFAULT 0,
     call_date DATE DEFAULT CURRENT_DATE,
     status TEXT DEFAULT 'Uncalled',
     appointment TEXT DEFAULT '',
@@ -843,6 +930,14 @@ CREATE TABLE IF NOT EXISTS public.customer_records (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Fast column migration for existing customer_records table:
+ALTER TABLE public.customer_records 
+    ADD COLUMN IF NOT EXISTS reg_date TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS total_transactions INTEGER DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS first_trans_date TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS last_trans_date TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS dormant_days INTEGER DEFAULT 0;
 
 -- 2. Create users table
 CREATE TABLE IF NOT EXISTS public.users (

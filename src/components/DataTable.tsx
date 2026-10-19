@@ -32,6 +32,11 @@ export type ColumnKey =
   | 'customerName' 
   | 'phoneNumber' 
   | 'areaOfReg' 
+  | 'regDate'
+  | 'totalTransactions'
+  | 'firstTransDate'
+  | 'lastTransDate'
+  | 'dormantDays'
   | 'callDate' 
   | 'appointment' 
   | 'feedbackNote' 
@@ -45,6 +50,11 @@ const DEFAULT_COLUMN_WIDTHS: Record<ColumnKey, number> = {
   customerName: 190,
   phoneNumber: 155,
   areaOfReg: 145,
+  regDate: 125,
+  totalTransactions: 125,
+  firstTransDate: 125,
+  lastTransDate: 125,
+  dormantDays: 110,
   callDate: 140,
   appointment: 180,
   feedbackNote: 220,
@@ -59,6 +69,11 @@ const MIN_COLUMN_WIDTHS: Record<ColumnKey, number> = {
   customerName: 120,
   phoneNumber: 120,
   areaOfReg: 100,
+  regDate: 95,
+  totalTransactions: 80,
+  firstTransDate: 95,
+  lastTransDate: 95,
+  dormantDays: 75,
   callDate: 110,
   appointment: 130,
   feedbackNote: 140,
@@ -755,6 +770,71 @@ export const DataTable: React.FC<DataTableProps> = ({
                 {renderResizer('areaOfReg', 'Area of Reg.')}
               </th>
 
+              {/* Reg. Date */}
+              <th 
+                style={{ width: `${columnWidths.regDate}px` }}
+                className="relative py-3 px-3 cursor-pointer hover:bg-slate-200/70 transition-colors whitespace-nowrap select-none"
+                onClick={() => handleSort('regDate')}
+              >
+                <div className="flex items-center gap-1 pr-2">
+                  <span>Reg. Date</span>
+                  {sortField === 'regDate' && (sortAsc ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />)}
+                </div>
+                {renderResizer('regDate', 'Reg. Date')}
+              </th>
+
+              {/* Total Transactions */}
+              <th 
+                style={{ width: `${columnWidths.totalTransactions}px` }}
+                className="relative py-3 px-3 cursor-pointer hover:bg-slate-200/70 transition-colors whitespace-nowrap select-none text-center"
+                onClick={() => handleSort('totalTransactions')}
+              >
+                <div className="flex items-center justify-center gap-1 pr-2">
+                  <span>Total Trans.</span>
+                  {sortField === 'totalTransactions' && (sortAsc ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />)}
+                </div>
+                {renderResizer('totalTransactions', 'Total Transactions')}
+              </th>
+
+              {/* First Trans. Date */}
+              <th 
+                style={{ width: `${columnWidths.firstTransDate}px` }}
+                className="relative py-3 px-3 cursor-pointer hover:bg-slate-200/70 transition-colors whitespace-nowrap select-none"
+                onClick={() => handleSort('firstTransDate')}
+              >
+                <div className="flex items-center gap-1 pr-2">
+                  <span>First Trans.</span>
+                  {sortField === 'firstTransDate' && (sortAsc ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />)}
+                </div>
+                {renderResizer('firstTransDate', 'First Trans. Date')}
+              </th>
+
+              {/* Last Trans. Date */}
+              <th 
+                style={{ width: `${columnWidths.lastTransDate}px` }}
+                className="relative py-3 px-3 cursor-pointer hover:bg-slate-200/70 transition-colors whitespace-nowrap select-none"
+                onClick={() => handleSort('lastTransDate')}
+              >
+                <div className="flex items-center gap-1 pr-2">
+                  <span>Last Trans.</span>
+                  {sortField === 'lastTransDate' && (sortAsc ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />)}
+                </div>
+                {renderResizer('lastTransDate', 'Last Trans. Date')}
+              </th>
+
+              {/* Dormant Days */}
+              <th 
+                style={{ width: `${columnWidths.dormantDays}px` }}
+                className="relative py-3 px-3 cursor-pointer hover:bg-slate-200/70 transition-colors whitespace-nowrap select-none text-center"
+                onClick={() => handleSort('dormantDays')}
+              >
+                <div className="flex items-center justify-center gap-1 pr-2">
+                  <span>Dormant Days</span>
+                  {sortField === 'dormantDays' && (sortAsc ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />)}
+                </div>
+                {renderResizer('dormantDays', 'Dormant Days')}
+              </th>
+
               {/* Status (Editable by All) */}
               <th 
                 style={{ width: `${columnWidths.status}px` }}
@@ -849,7 +929,7 @@ export const DataTable: React.FC<DataTableProps> = ({
           <tbody className="divide-y divide-slate-100">
             {paginatedRecords.length === 0 ? (
               <tr>
-                <td colSpan={11} className="py-12 text-center text-slate-500">
+                <td colSpan={16} className="py-12 text-center text-slate-500">
                   <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                   <div className="font-semibold text-sm">No customer records match active filters</div>
                   <div className="text-xs text-slate-400 mt-1">Try expanding the date range or clearing status filters.</div>
@@ -943,6 +1023,66 @@ export const DataTable: React.FC<DataTableProps> = ({
                     >
                       <span className="inline-block px-2 py-0.5 rounded-xs text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200 truncate max-w-full">
                         {record.areaOfReg}
+                      </span>
+                    </td>
+
+                    {/* Reg. Date */}
+                    <td 
+                      style={{ width: `${columnWidths.regDate}px` }}
+                      className={`${pyClass} px-3 text-slate-700 whitespace-nowrap overflow-hidden`}
+                    >
+                      <span className="font-mono text-[11px] text-slate-700">
+                        {record.regDate || '—'}
+                      </span>
+                    </td>
+
+                    {/* Total Transactions */}
+                    <td 
+                      style={{ width: `${columnWidths.totalTransactions}px` }}
+                      className={`${pyClass} px-3 text-center whitespace-nowrap overflow-hidden`}
+                    >
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-bold ${
+                        (record.totalTransactions || 0) > 0 
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                          : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {record.totalTransactions !== undefined ? record.totalTransactions.toLocaleString() : '0'}
+                      </span>
+                    </td>
+
+                    {/* First Trans. Date */}
+                    <td 
+                      style={{ width: `${columnWidths.firstTransDate}px` }}
+                      className={`${pyClass} px-3 text-slate-700 whitespace-nowrap overflow-hidden`}
+                    >
+                      <span className="font-mono text-[11px] text-slate-700">
+                        {record.firstTransDate || '—'}
+                      </span>
+                    </td>
+
+                    {/* Last Trans. Date */}
+                    <td 
+                      style={{ width: `${columnWidths.lastTransDate}px` }}
+                      className={`${pyClass} px-3 text-slate-700 whitespace-nowrap overflow-hidden`}
+                    >
+                      <span className="font-mono text-[11px] text-slate-700">
+                        {record.lastTransDate || '—'}
+                      </span>
+                    </td>
+
+                    {/* Dormant Days */}
+                    <td 
+                      style={{ width: `${columnWidths.dormantDays}px` }}
+                      className={`${pyClass} px-3 text-center whitespace-nowrap overflow-hidden`}
+                    >
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-bold ${
+                        (record.dormantDays || 0) >= 90
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : (record.dormantDays || 0) >= 30
+                          ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {record.dormantDays !== undefined ? `${record.dormantDays}d` : '0d'}
                       </span>
                     </td>
 

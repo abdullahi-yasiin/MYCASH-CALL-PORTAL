@@ -54,6 +54,11 @@ export interface CustomerRecord {
   customerName: string;
   phoneNumber: string;
   areaOfReg: string; // Branch / Region
+  regDate?: string; // Reg. Date (YYYY-MM-DD)
+  totalTransactions?: number; // Total Transactions count
+  firstTransDate?: string; // First Trans. Date (YYYY-MM-DD)
+  lastTransDate?: string; // Last Trans. Date (YYYY-MM-DD)
+  dormantDays?: number; // Dormant Days since last activity
   callDate: string; // YYYY-MM-DD
   status: CallStatus;
   appointment: string; // YYYY-MM-DDTHH:mm or readable

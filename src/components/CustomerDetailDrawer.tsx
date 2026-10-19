@@ -214,6 +214,44 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
             </p>
           </div>
 
+          {/* Customer Registration & Transaction Metrics */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-md">
+            <h4 className="font-bold text-slate-800 text-xs mb-2.5 flex items-center justify-between">
+              <span>Account & Transaction Profile</span>
+              <span className="text-[10.5px] font-semibold text-slate-500">
+                Branch: <strong className="text-slate-800">{record.areaOfReg}</strong>
+              </span>
+            </h4>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+              <div className="bg-white p-2 rounded border border-slate-200">
+                <div className="text-[10px] text-slate-500 font-medium">Reg. Date</div>
+                <div className="text-xs font-bold text-slate-800 font-mono mt-0.5">{record.regDate || '—'}</div>
+              </div>
+              <div className="bg-white p-2 rounded border border-blue-100">
+                <div className="text-[10px] text-blue-600 font-medium">Total Trans.</div>
+                <div className="text-xs font-extrabold text-blue-900 mt-0.5">
+                  {record.totalTransactions !== undefined ? record.totalTransactions.toLocaleString() : '0'}
+                </div>
+              </div>
+              <div className="bg-white p-2 rounded border border-slate-200">
+                <div className="text-[10px] text-slate-500 font-medium">First Trans.</div>
+                <div className="text-xs font-bold text-slate-800 font-mono mt-0.5">{record.firstTransDate || '—'}</div>
+              </div>
+              <div className="bg-white p-2 rounded border border-slate-200">
+                <div className="text-[10px] text-slate-500 font-medium">Last Trans.</div>
+                <div className="text-xs font-bold text-slate-800 font-mono mt-0.5">{record.lastTransDate || '—'}</div>
+              </div>
+              <div className="bg-white p-2 rounded border border-amber-200">
+                <div className="text-[10px] text-amber-700 font-medium">Dormant Days</div>
+                <div className={`text-xs font-extrabold mt-0.5 ${
+                  (record.dormantDays || 0) >= 90 ? 'text-rose-600' : 'text-amber-800'
+                }`}>
+                  {record.dormantDays !== undefined ? `${record.dormantDays} days` : '0 days'}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Date and Follow-up Appointment */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>

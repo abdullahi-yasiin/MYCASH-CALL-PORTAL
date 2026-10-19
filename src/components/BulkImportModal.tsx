@@ -170,6 +170,11 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
         customerName: row.customerName,
         phoneNumber: row.phoneNumber,
         areaOfReg: currentUser.role === 'SUPERVISOR' ? currentUser.branch : row.areaOfReg,
+        regDate: row.regDate || '',
+        totalTransactions: row.totalTransactions ?? 0,
+        firstTransDate: row.firstTransDate || '',
+        lastTransDate: row.lastTransDate || '',
+        dormantDays: row.dormantDays ?? 0,
         callDate: row.callDate,
         status: row.status,
         appointment: row.appointment,
@@ -253,7 +258,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
             <div className="text-xs text-blue-900 space-y-0.5">
               <div className="font-semibold">Required Excel Schema:</div>
               <div className="text-blue-700 text-[11px] sm:text-xs leading-relaxed">
-                Customer Name*, Phone Number*, Area of Reg.*, Call Date, Status, Appointment, Feedback Note, Supervisor Note
+                Customer Name*, Phone Number*, Area of Reg.*, Reg. Date, Total Transactions, First Trans. Date, Last Trans. Date, Dormant Days, Call Date, Status, Appointment, Feedback Note, Supervisor Note, Agent Name
               </div>
             </div>
             <button

@@ -430,25 +430,6 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
   const [agentSearch, setAgentSearch] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Gemini API Key & Netlify Continuous Deployment Settings state
-  const [showApiKeyConfig, setShowApiKeyConfig] = useState<boolean>(false);
-  const [customApiKeyInput, setCustomApiKeyInput] = useState<string>(() => {
-    return (typeof window !== 'undefined' ? localStorage.getItem('mycash_gemini_api_key') : '') || '';
-  });
-  const [apiKeySaveStatus, setApiKeySaveStatus] = useState<string | null>(null);
-
-  const handleSaveApiKey = () => {
-    const trimmed = customApiKeyInput.trim();
-    if (trimmed) {
-      localStorage.setItem('mycash_gemini_api_key', trimmed);
-      setApiKeySaveStatus('Gemini API key saved to browser! Connected directly for all analysis.');
-    } else {
-      localStorage.removeItem('mycash_gemini_api_key');
-      setApiKeySaveStatus('Custom key cleared. Environment variables (Netlify/System) will be used.');
-    }
-    setTimeout(() => setApiKeySaveStatus(null), 4000);
-  };
-
   // Active view tab inside modal: 'configure' or 'results'
   const [activeTab, setActiveTab] = useState<'configure' | 'results'>('configure');
 
@@ -475,7 +456,8 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
   }, [isAnalyzing]);
 
   // Active visual subtab in results:
-  const [resultsSection, setResultsSection] = useState<'overview' | 'complaints' | 'appreciations-rejections' | 'appointments' | 'branches' | 'agents' | 'roadmap'>('overview');
+  const [resultsSection, setResultsSection] = useState<'overview' | 'complaints' | 'feedback' | 'callbacks' | 'performance' | 'actions'>('overview');
+  const [performanceView, setPerformanceView] = useState<'agents' | 'branches'>('agents');
 
   // Filter branches for display - sort branches with active records first
   const filteredBranchesList = useMemo(() => {
@@ -738,9 +720,9 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
   if (!isOpen || (currentUser.role !== 'HQ_ADMIN' && currentUser.role !== 'SUPERVISOR')) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-3 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div 
-        className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-xs sm:text-sm"
+        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl xl:max-w-7xl max-h-[94vh] h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-xs sm:text-sm"
         role="dialog"
         aria-modal="true"
         aria-labelledby="ai-modal-title"
@@ -828,7 +810,7 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
             /* ======================================================== */
             /* TAB 1: SELECTION OPTIONS (All Branches, Multiple Branches, All Agents, Multiple Agents) */
             /* ======================================================== */
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-5xl mx-auto space-y-6">
               {/* Step Title */}
               <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -1316,86 +1298,24 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
 
               {/* Netlify Deployment & Gemini AI Connection Card */}
               <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                      <Sparkles className="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-xs font-bold text-slate-900">
-                          Gemini 3.8 Flash Engine & Netlify Cloud Sync
-                        </h4>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          Continuous CI/CD Ready
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500">
-                        Automatically connects when deployed to Netlify via GitHub, analyzing customer notes and translating Somali feedback.
-                      </p>
-                    </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKeyConfig(prev => !prev)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-                  >
-                    <Settings className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{showApiKeyConfig ? 'Hide Netlify Settings' : 'Configure Gemini Key / Netlify'}</span>
-                  </button>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-xs font-bold text-slate-900">
+                        AI Intelligence Engine
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Server-Side Powered
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Server-side Gemini intelligence securely processes customer feedback notes, extracts root causes, translates Af-Soomaali quotes, and generates actionable agent coaching.
+                    </p>
+                  </div>
                 </div>
-
-                {/* Collapsible Key & Netlify Guidance Section */}
-                {showApiKeyConfig && (
-                  <div className="mt-3 pt-3 border-t border-slate-200 space-y-3 animate-in fade-in duration-150">
-                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 text-xs space-y-2">
-                      <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                        <Key className="w-3.5 h-3.5 text-blue-600" />
-                        <span>How Netlify + GitHub Continuous Analysis Works:</span>
-                      </div>
-                      <ul className="list-disc list-inside space-y-1 text-slate-600 text-[11.5px] leading-relaxed">
-                        <li>
-                          <strong>GitHub & Netlify Continuous Deployment:</strong> When you commit or push changes from AI Studio to GitHub, Netlify automatically builds and hosts the app with the included serverless function at <code className="bg-slate-200 px-1 py-0.5 rounded font-mono text-[11px]">/api/ai-intelligence</code>.
-                        </li>
-                        <li>
-                          <strong>Netlify Environment Variable:</strong> In your <em>Netlify Dashboard &gt; Site configuration &gt; Environment variables</em>, add <code className="bg-slate-200 px-1 py-0.5 rounded font-mono text-[11px]">GEMINI_API_KEY</code> so Netlify serverless functions can access Gemini without exposing keys in client bundles.
-                        </li>
-                        <li>
-                          <strong>Direct Browser Key (Instant Connection):</strong> Alternatively, you can paste your Gemini API key below. It will be stored in your browser's local storage and used immediately on your Netlify deployment without waiting for a rebuild.
-                        </li>
-                      </ul>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                      <div className="relative flex-1">
-                        <Key className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="password"
-                          value={customApiKeyInput}
-                          onChange={(e) => setCustomApiKeyInput(e.target.value)}
-                          placeholder="Paste Gemini API Key (e.g. AIzaSy...)"
-                          className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-800"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleSaveApiKey}
-                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Save Key</span>
-                      </button>
-                    </div>
-
-                    {apiKeySaveStatus && (
-                      <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-1.5 animate-in fade-in">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span>{apiKeySaveStatus}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           ) : (
@@ -1602,7 +1522,7 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                         ) : (
                           <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1" title={analysisResult.statusMessage}>
                             <AlertCircle className="w-3 h-3 text-amber-600" />
-                            <span>Analytical Rules Engine • Configure GEMINI_API_KEY in Netlify</span>
+                            <span>Grounded Rules Engine • High Precision Analysis</span>
                           </span>
                         )}
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 flex items-center gap-1">
@@ -1643,702 +1563,739 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                   </div>
 
                   {/* Modern Segmented Subtabs Bar */}
-                  <div className="bg-slate-100/80 p-1 rounded-xl border border-slate-200/80 flex items-center gap-1 overflow-x-auto scrollbar-none">
-                    <button
-                      onClick={() => setResultsSection('overview')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                        resultsSection === 'overview'
-                          ? 'bg-white text-slate-900 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                      }`}
-                    >
-                      Executive Overview
-                    </button>
+                  {(() => {
+                    const totalCalls = analysisResult.agentSummaries.reduce((sum, a) => sum + (a.callsMade || 0), 0);
+                    const totalConversions = analysisResult.agentSummaries.reduce((sum, a) => sum + (a.conversions || 0), 0);
+                    const totalRejections = analysisResult.agentSummaries.reduce((sum, a) => sum + (a.rejections || 0), 0);
+                    const totalCallbacks = analysisResult.appointmentInsights.totalAppointments || 0;
+                    const contactRate = analysisResult.totalRecordsAnalyzed > 0 
+                      ? Math.min(100, Math.round((totalCalls / analysisResult.totalRecordsAnalyzed) * 100)) 
+                      : 0;
+                    const conversionRate = totalCalls > 0 
+                      ? Math.min(100, Math.round((totalConversions / totalCalls) * 100)) 
+                      : analysisResult.feedbackBreakdown.appreciationsPercent;
+                    const rejectionRate = totalCalls > 0 
+                      ? Math.min(100, Math.round((totalRejections / totalCalls) * 100)) 
+                      : analysisResult.feedbackBreakdown.rejectionsPercent;
 
-                    <button
-                      onClick={() => setResultsSection('complaints')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                        resultsSection === 'complaints'
-                          ? 'bg-white text-slate-900 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                      }`}
-                    >
-                      <span>Frequent Complaints</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        resultsSection === 'complaints' ? 'bg-red-100 text-red-700' : 'bg-slate-200/70 text-slate-600'
-                      }`}>
-                        {analysisResult.topComplaints.length}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => setResultsSection('appreciations-rejections')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                        resultsSection === 'appreciations-rejections'
-                          ? 'bg-white text-slate-900 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                      }`}
-                    >
-                      Success & Rejections
-                    </button>
-
-                    <button
-                      onClick={() => setResultsSection('appointments')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                        resultsSection === 'appointments'
-                          ? 'bg-white text-slate-900 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                      }`}
-                    >
-                      <span>Callbacks</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        resultsSection === 'appointments' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200/70 text-slate-600'
-                      }`}>
-                        {analysisResult.appointmentInsights.totalAppointments}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => setResultsSection('branches')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                        resultsSection === 'branches'
-                          ? 'bg-white text-slate-900 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                      }`}
-                    >
-                      <span>Branch Dynamics</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        resultsSection === 'branches' ? 'bg-slate-200 text-slate-800' : 'bg-slate-200/70 text-slate-600'
-                      }`}>
-                        {analysisResult.branchPerformances.length}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => setResultsSection('agents')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                        resultsSection === 'agents'
-                          ? 'bg-white text-slate-900 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                      }`}
-                    >
-                      <span>Agent Coaching</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        resultsSection === 'agents' ? 'bg-slate-200 text-slate-800' : 'bg-slate-200/70 text-slate-600'
-                      }`}>
-                        {analysisResult.agentSummaries.length}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => setResultsSection('roadmap')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                        resultsSection === 'roadmap'
-                          ? 'bg-white text-slate-900 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                      }`}
-                    >
-                      Strategic Roadmap
-                    </button>
-                  </div>
-
-                  {/* Subtab 1: Executive Summary & Sentiment */}
-                  {resultsSection === 'overview' && (
-                    <div className="space-y-4">
-                      {/* 6 Executive KPI Overview Cards */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
-                        {/* 1. Complaints Friction */}
-                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
-                          <div className="h-0.5 w-full bg-red-600 absolute top-0 left-0" />
-                          <div>
-                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
-                                Friction
-                              </span>
-                              <span className="text-[10px] text-red-600 font-bold">Issues</span>
-                            </div>
-                            <div className="text-xl font-black text-red-600 mt-2">
-                              {analysisResult.feedbackBreakdown.complaintsPercent}%
-                            </div>
-                          </div>
-                          <div className="mt-2">
-                            <p className="text-[10px] text-slate-500 truncate">
-                              Pricing, tariffs & friction
-                            </p>
-                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
-                              <div className="h-full bg-red-600 rounded-full" style={{ width: `${Math.min(100, Math.max(8, analysisResult.feedbackBreakdown.complaintsPercent))}%` }} />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 2. Success Rate */}
-                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
-                          <div className="h-0.5 w-full bg-emerald-600 absolute top-0 left-0" />
-                          <div>
-                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                                Success
-                              </span>
-                              <span className="text-[10px] text-emerald-600 font-bold">Praise</span>
-                            </div>
-                            <div className="text-xl font-black text-emerald-600 mt-2">
-                              {analysisResult.feedbackBreakdown.appreciationsPercent}%
-                            </div>
-                          </div>
-                          <div className="mt-2">
-                            <p className="text-[10px] text-slate-500 truncate">
-                              Speed, service & conversions
-                            </p>
-                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
-                              <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.min(100, Math.max(8, analysisResult.feedbackBreakdown.appreciationsPercent))}%` }} />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 3. Rejections */}
-                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
-                          <div className="h-0.5 w-full bg-amber-500 absolute top-0 left-0" />
-                          <div>
-                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                Objections
-                              </span>
-                              <span className="text-[10px] text-amber-600 font-bold">Declined</span>
-                            </div>
-                            <div className="text-xl font-black text-amber-600 mt-2">
-                              {analysisResult.feedbackBreakdown.rejectionsPercent}%
-                            </div>
-                          </div>
-                          <div className="mt-2">
-                            <p className="text-[10px] text-slate-500 truncate">
-                              Competitor loyalty & timing
-                            </p>
-                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
-                              <div className="h-full bg-amber-500 rounded-full" style={{ width: `${Math.min(100, Math.max(8, analysisResult.feedbackBreakdown.rejectionsPercent))}%` }} />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 4. Appointments & Callbacks */}
-                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
-                          <div className="h-0.5 w-full bg-blue-600 absolute top-0 left-0" />
-                          <div>
-                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                                Callbacks
-                              </span>
-                              <span className="text-[10px] text-blue-600 font-bold">Bookings</span>
-                            </div>
-                            <div className="text-xl font-black text-blue-600 mt-2">
-                              {analysisResult.feedbackBreakdown.inquiriesAndFollowupsPercent}%
-                            </div>
-                          </div>
-                          <div className="mt-2">
-                            <p className="text-[10px] text-slate-500 truncate">
-                              {analysisResult.appointmentInsights.totalAppointments} Bookings scheduled
-                            </p>
-                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
-                              <div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.min(100, Math.max(8, analysisResult.feedbackBreakdown.inquiriesAndFollowupsPercent))}%` }} />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 5. Records Audited */}
-                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
-                          <div className="h-0.5 w-full bg-indigo-600 absolute top-0 left-0" />
-                          <div>
-                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
-                                Audited
-                              </span>
-                              <span className="text-[10px] text-indigo-600 font-bold">Leads</span>
-                            </div>
-                            <div className="text-xl font-black text-slate-900 mt-2">
-                              {analysisResult.totalRecordsAnalyzed.toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="mt-2">
-                            <p className="text-[10px] text-slate-500 truncate">
-                              Customer records processed
-                            </p>
-                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
-                              <div className="h-full bg-indigo-600 rounded-full w-full" />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 6. Active Coverage */}
-                        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex flex-col justify-between relative overflow-hidden">
-                          <div className="h-0.5 w-full bg-slate-700 absolute top-0 left-0" />
-                          <div>
-                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-700" />
-                                Coverage
-                              </span>
-                              <span className="text-[10px] text-slate-700 font-bold">Network</span>
-                            </div>
-                            <div className="text-xl font-black text-slate-900 mt-2">
-                              {analysisResult.branchesCovered.length} Hubs
-                            </div>
-                          </div>
-                          <div className="mt-2">
-                            <p className="text-[10px] text-slate-500 truncate">
-                              {analysisResult.agentsCovered.length} Calling agents active
-                            </p>
-                            <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
-                              <div className="h-full bg-slate-700 rounded-full w-full" />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Executive Summary Card in English */}
-                      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-2xs space-y-3">
-                        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                          <Sparkles className="w-4 h-4 text-amber-500" />
-                          Executive Summary (English):
-                        </h4>
-                        <div className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 font-medium">
-                          {analysisResult.executiveSummary}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Subtab 2: Top Customer Complaints */}
-                  {resultsSection === 'complaints' && (
-                    <div className="space-y-4">
-                      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
-                        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-                          <div>
-                            <h4 className="text-sm font-bold text-slate-900">
-                              Most Frequent Customer Complaints & Root Causes (English)
-                            </h4>
-                            <p className="text-xs text-slate-500">
-                              Analyzed from customer feedback notes and ranked by frequency, severity, and customer impact.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3">
-                          {analysisResult.topComplaints.map((item, idx) => (
-                            <div 
-                              key={idx}
-                              className="border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-all bg-white space-y-3"
-                            >
-                              <div className="flex items-start justify-between gap-3 flex-wrap">
-                                <div>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                      item.severity === 'CRITICAL' ? 'bg-red-100 text-red-800' :
-                                      item.severity === 'HIGH' ? 'bg-amber-100 text-amber-800' :
-                                      'bg-blue-100 text-blue-800'
-                                    }`}>
-                                      {item.severity} SEVERITY
-                                    </span>
-                                    <span className="text-xs text-slate-400 font-semibold">•</span>
-                                    <span className="text-xs font-semibold text-slate-600">{item.category}</span>
-                                  </div>
-                                  <h5 className="text-sm font-bold text-slate-900 mt-1">
-                                    {item.issue}
-                                  </h5>
-                                  {item.affectedBranches && item.affectedBranches.length > 0 && (
-                                    <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Branches Origin:</span>
-                                      {item.affectedBranches.map((br, bIdx) => (
-                                        <span key={bIdx} className="text-[10px] font-semibold bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded-md">
-                                          {br}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div className="text-right shrink-0">
-                                  <div className="text-lg font-black text-red-600">{item.percentage}%</div>
-                                  <div className="text-[10px] text-slate-500 font-medium">{item.count} Customer Mentions</div>
-                                </div>
-                              </div>
-
-                              {/* Customer Quotes translated to English */}
-                              {item.customerQuotes && item.customerQuotes.length > 0 && (
-                                <div className="space-y-1.5">
-                                  <div className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">
-                                    Customer Feedback Quotes & English Translations:
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    {item.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'indigo'))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Root Cause Analysis in English */}
-                              <div className="text-xs text-slate-600 bg-slate-100/60 p-2.5 rounded-lg border border-slate-200">
-                                <strong className="text-slate-800">Root Cause Analysis:</strong> {item.rootCause}
-                              </div>
-
-                              {/* Action Advice */}
-                              <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-2.5 flex items-start gap-2">
-                                <Lightbulb className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                                <div className="text-xs text-emerald-900">
-                                  <strong className="font-bold">Recommended Action:</strong> {item.actionRecommendation}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Subtab 3: Appreciations & Rejections */}
-                  {resultsSection === 'appreciations-rejections' && (
-                    <div className="space-y-4">
-                      {/* Appreciations */}
-                      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
-                        <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
-                          <ThumbsUp className="w-4 h-4" />
-                          <h4>Customer Appreciations & Positive Highlights</h4>
-                        </div>
-                        <p className="text-xs text-slate-500">
-                          Identified themes where customers expressed genuine appreciation or satisfaction.
-                        </p>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {analysisResult.topAppreciations.map((apprec, idx) => (
-                            <div key={idx} className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <h5 className="font-bold text-xs text-emerald-950">{apprec.theme}</h5>
-                                <span className="text-xs font-black text-emerald-700">{apprec.percentage}%</span>
-                              </div>
-                              {apprec.customerQuotes && apprec.customerQuotes.length > 0 && (
-                                <div className="space-y-1.5">
-                                  <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
-                                    Customer Feedback Quotes & English Translations:
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    {apprec.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'emerald'))}
-                                  </div>
-                                </div>
-                              )}
-                              <div className="text-[11px] text-emerald-800 font-medium">
-                                <strong>Success Driver:</strong> {apprec.keyDriver}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Rejections & Objections */}
-                      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
-                        <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
-                          <ThumbsDown className="w-4 h-4" />
-                          <h4>Customer Rejections & Objection-Handling Coaching</h4>
-                        </div>
-                        <p className="text-xs text-slate-500">
-                          Why customers declined offers and practical script guidance for calling staff to overcome objections.
-                        </p>
-
-                        <div className="space-y-3">
-                          {analysisResult.rejectionAnalysis.map((rej, idx) => (
-                            <div key={idx} className="p-4 rounded-xl border border-slate-200 bg-white space-y-2">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h5 className="font-bold text-xs text-slate-900">{rej.reason}</h5>
-                                  {rej.affectedBranches && rej.affectedBranches.length > 0 && (
-                                    <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Affected Hubs:</span>
-                                      {rej.affectedBranches.map((br, bIdx) => (
-                                        <span key={bIdx} className="text-[10px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded">
-                                          {br}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                                <span className="text-xs font-black text-amber-600 shrink-0">{rej.percentage}% of Rejections</span>
-                              </div>
-                              <p className="text-xs text-slate-600">
-                                <strong className="text-slate-800">Customer Behavior:</strong> {rej.customerExplanation}
-                              </p>
-                              {rej.customerQuotes && rej.customerQuotes.length > 0 && (
-                                <div className="space-y-1.5">
-                                  <div className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
-                                    Customer Feedback Quotes & English Translations:
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    {rej.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'amber'))}
-                                  </div>
-                                </div>
-                              )}
-                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-xs text-blue-950">
-                                <strong className="text-blue-800">Agent Counter-Script / How to Overcome:</strong> {rej.overcomingScript}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Subtab 4: Appointments & Callbacks */}
-                  {resultsSection === 'appointments' && (
-                    <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-2xs space-y-4">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2 text-blue-700 font-bold text-sm">
-                          <Calendar className="w-4 h-4" />
-                          <h4>Scheduled Appointments & Callback Intelligence</h4>
-                        </div>
-                        {analysisResult.appointmentInsights.totalAppointments > 0 && (
-                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                            {analysisResult.appointmentInsights.totalAppointments} Active Bookings Found
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
-                          <div className="text-xs font-bold text-blue-800">Total Scheduled Appointments & Callbacks</div>
-                          <div className="text-2xl font-black text-blue-900 mt-1">
-                            {analysisResult.appointmentInsights.totalAppointments}
-                          </div>
-                          <div className="text-[11px] text-blue-700 mt-0.5">
-                            {analysisResult.appointmentInsights.appointmentRate}% of completed calls requested appointments
-                          </div>
-                        </div>
-
-                        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                          <div className="text-xs font-bold text-slate-800">Follow-up Adherence Protocol</div>
-                          <div className="text-xs text-slate-600 mt-1">
-                            {analysisResult.appointmentInsights.actionableFollowupAdvice}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="p-4 rounded-xl border border-slate-200 bg-white">
-                        <h5 className="text-xs font-bold text-slate-900 mb-1">Key Observations on Customer Callbacks:</h5>
-                        <p className="text-xs text-slate-700 leading-relaxed">
-                          {analysisResult.appointmentInsights.keyObservations}
-                        </p>
-                      </div>
-
-                      {/* Detailed Booked Appointments Table */}
-                      {analysisResult.appointmentInsights.sampleAppointments && analysisResult.appointmentInsights.sampleAppointments.length > 0 && (
-                        <div className="border border-slate-200 rounded-xl overflow-hidden mt-3">
-                          <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                              Booked Appointment & Callback Roster ({analysisResult.appointmentInsights.sampleAppointments.length} records)
-                            </span>
-                            <span className="text-[11px] text-slate-500">Fetched directly from Excel tables</span>
-                          </div>
-                          <div className="overflow-x-auto max-h-72">
-                            <table className="w-full text-left text-xs border-collapse">
-                              <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0 border-b border-slate-200">
-                                <tr>
-                                  <th className="p-2.5">Customer Name</th>
-                                  <th className="p-2.5">Phone</th>
-                                  <th className="p-2.5">Calling Agent</th>
-                                  <th className="p-2.5">Branch</th>
-                                  <th className="p-2.5">Appointment / Callback</th>
-                                  <th className="p-2.5">Customer Feedback Note</th>
-                                  <th className="p-2.5 text-center">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {analysisResult.appointmentInsights.sampleAppointments.map((appt, idx) => (
-                                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-2.5 font-bold text-slate-900">{appt.customerName}</td>
-                                    <td className="p-2.5 text-slate-600 font-mono text-[11px]">{appt.phoneNumber || '-'}</td>
-                                    <td className="p-2.5 text-slate-800 font-medium">{appt.agentName}</td>
-                                    <td className="p-2.5 text-slate-600">{appt.branch}</td>
-                                    <td className="p-2.5 font-semibold text-blue-700">{appt.appointmentTime}</td>
-                                    <td className="p-2.5 text-slate-700 max-w-xs">
-                                      {appt.feedbackNote ? (() => {
-                                        const formatted = formatQuoteWithTranslation(appt.feedbackNote);
-                                        const parts = formatted.split(/\s*—\s*\(English translation:\s*|\s*—\s*\(English:\s*/i);
-                                        if (parts.length >= 2) {
-                                          const somali = parts[0].replace(/^["']|["']$/g, '').trim();
-                                          const english = parts[1].replace(/\)$/, '').replace(/^["']|["']$/g, '').trim();
-                                          return (
-                                            <div className="space-y-0.5">
-                                              <div className="text-[11px] font-medium text-slate-900 italic font-serif">"{somali}"</div>
-                                              <div className="text-[10px] text-blue-700 font-medium">↳ {english}</div>
-                                            </div>
-                                          );
-                                        }
-                                        return <span className="italic">{appt.feedbackNote}</span>;
-                                      })() : '-'}
-                                    </td>
-                                    <td className="p-2.5 text-center">
-                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
-                                        {appt.status}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Subtab 5: Branch Performance */}
-                  {resultsSection === 'branches' && (
-                    <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-4">
-                      <h4 className="text-sm font-bold text-slate-900">
-                        Regional Branch Performance & Bottleneck Analysis (English)
-                      </h4>
-
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                          <thead>
-                            <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                              <th className="p-3">Branch Name</th>
-                              <th className="p-3 text-center">Leads</th>
-                              <th className="p-3 text-center">Calls Made</th>
-                              <th className="p-3 text-center">Conversion %</th>
-                              <th className="p-3">Dominant Customer Complaint</th>
-                              <th className="p-3">Observed Strengths</th>
-                              <th className="p-3">Operational Bottlenecks</th>
-                              <th className="p-3">Managerial Coaching Tip</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {analysisResult.branchPerformances.map((b, idx) => (
-                              <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                <td className="p-3 font-bold text-slate-900">{b.branchName}</td>
-                                <td className="p-3 text-center text-slate-600">{b.totalLeads}</td>
-                                <td className="p-3 text-center text-slate-600">{b.callsMade}</td>
-                                <td className="p-3 text-center">
-                                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                                    b.successRate >= 45 ? 'bg-emerald-100 text-emerald-800' :
-                                    b.successRate >= 25 ? 'bg-blue-100 text-blue-800' :
-                                    'bg-red-100 text-red-800'
-                                  }`}>
-                                    {b.successRate}%
-                                  </span>
-                                </td>
-                                <td className="p-3 text-slate-700">{b.dominantComplaint}</td>
-                                <td className="p-3 text-emerald-700">{b.strengths}</td>
-                                <td className="p-3 text-rose-700">{b.bottlenecks}</td>
-                                <td className="p-3 text-slate-700 italic font-medium">{b.managerialAdvice}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Subtab 6: Agent Summaries & Coaching */}
-                  {resultsSection === 'agents' && (
-                    <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-4">
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900">
-                          Individual Agent Evaluations & Tailored Objection Coaching
-                        </h4>
-                        <p className="text-xs text-slate-500">
-                          Personalized advice on how each calling agent can overcome objections and boost conversions.
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {analysisResult.agentSummaries.map((ag, idx) => (
-                          <div 
-                            key={idx}
-                            className="p-4 rounded-xl border border-slate-200 hover:border-slate-300 transition-all bg-white flex flex-col justify-between space-y-3"
+                    return (
+                      <>
+                        {/* Segmented Control Bar */}
+                        <div className="bg-slate-100 p-1 rounded-xl border border-slate-200 flex items-center gap-1 overflow-x-auto scrollbar-none">
+                          <button
+                            type="button"
+                            onClick={() => setResultsSection('overview')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                              resultsSection === 'overview'
+                                ? 'bg-white text-slate-900 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                            }`}
                           >
-                            <div>
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h5 className="font-bold text-sm text-slate-900">{ag.agentName}</h5>
-                                  <div className="text-[11px] text-slate-500 font-medium">{ag.branch} Hub</div>
+                            <TrendingUp className="w-3.5 h-3.5 text-slate-600" />
+                            <span>Summary & Stats</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setResultsSection('complaints')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                              resultsSection === 'complaints'
+                                ? 'bg-white text-slate-900 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                            }`}
+                          >
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                            <span>Customer Complaints</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                              resultsSection === 'complaints' ? 'bg-rose-100 text-rose-800' : 'bg-slate-200/80 text-slate-700'
+                            }`}>
+                              {analysisResult.topComplaints.length}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setResultsSection('feedback')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                              resultsSection === 'feedback'
+                                ? 'bg-white text-slate-900 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                            }`}
+                          >
+                            <ThumbsUp className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Decisions (Yes vs No)</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                              resultsSection === 'feedback' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200/80 text-slate-700'
+                            }`}>
+                              {analysisResult.topAppreciations.length + analysisResult.rejectionAnalysis.length}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setResultsSection('callbacks')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                              resultsSection === 'callbacks'
+                                ? 'bg-white text-slate-900 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                            }`}
+                          >
+                            <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Scheduled Callbacks</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                              resultsSection === 'callbacks' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200/80 text-slate-700'
+                            }`}>
+                              {totalCallbacks}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setResultsSection('performance')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                              resultsSection === 'performance'
+                                ? 'bg-white text-slate-900 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                            }`}
+                          >
+                            <Users className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Team Performance</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                              resultsSection === 'performance' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200/80 text-slate-700'
+                            }`}>
+                              {analysisResult.agentSummaries.length}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setResultsSection('actions')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                              resultsSection === 'actions'
+                                ? 'bg-white text-slate-900 shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                            }`}
+                          >
+                            <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Action Plan</span>
+                          </button>
+                        </div>
+
+                        {/* TAB 1: Summary & Quick Stats */}
+                        {resultsSection === 'overview' && (
+                          <div className="space-y-4">
+                            {/* 5 Crucial Metric Cards in Simple English */}
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                              {/* 1. Total Leads */}
+                              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between">
+                                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                  Total Leads
                                 </div>
-                                <div className="text-right">
-                                  <div className="text-sm font-black text-blue-600">{ag.conversionRate}% Conv.</div>
-                                  <div className="text-[10px] text-slate-500">
-                                    Assigned: <strong className="text-slate-800">{ag.totalAssigned}</strong> | Calls: <strong className="text-slate-800">{ag.callsMade}</strong> | Closed: <strong className="text-emerald-700">{ag.conversions}</strong>
-                                    {typeof ag.rejections === 'number' && (
-                                      <span> | Declined: <strong className="text-orange-700">{ag.rejections}</strong></span>
-                                    )}
-                                  </div>
+                                <div className="text-2xl font-black text-slate-900 my-1">
+                                  {analysisResult.totalRecordsAnalyzed.toLocaleString()}
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                  Customer records in list
                                 </div>
                               </div>
 
-                              {ag.customerSentimentSummary.includes('CRITICAL') || ag.customerSentimentSummary.includes('several times') || ag.customerSentimentSummary.includes('multiple times') || ag.customerSentimentSummary.includes('Over-dialing') ? (
-                                <div className="mt-2 text-xs text-rose-900 bg-rose-50 p-2.5 rounded-lg border border-rose-200 space-y-1">
-                                  <div className="flex items-center gap-1.5 font-bold text-rose-800 text-[11px] uppercase tracking-wider">
-                                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                                    <span>Critical Alert: Repeated Calls / Over-Dialing Pushback</span>
-                                  </div>
-                                  <p className="text-slate-800 leading-relaxed font-medium">
-                                    {ag.customerSentimentSummary}
+                              {/* 2. Calls Made */}
+                              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between">
+                                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                  Calls Made
+                                </div>
+                                <div className="text-2xl font-black text-slate-800 my-1">
+                                  {totalCalls > 0 ? totalCalls.toLocaleString() : analysisResult.totalRecordsAnalyzed.toLocaleString()}
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                  {contactRate > 0 ? `${contactRate}% contact rate` : 'All records processed'}
+                                </div>
+                              </div>
+
+                              {/* 3. Customers Won (Conversions) */}
+                              <div className="bg-white border border-emerald-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between relative overflow-hidden">
+                                <div className="h-1 w-full bg-emerald-500 absolute top-0 left-0" />
+                                <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
+                                  Customers Won
+                                </div>
+                                <div className="text-2xl font-black text-emerald-600 my-1">
+                                  {totalConversions > 0 ? totalConversions : `${analysisResult.feedbackBreakdown.appreciationsPercent}%`}
+                                </div>
+                                <div className="text-[11px] text-emerald-800 font-medium">
+                                  {conversionRate}% success rate
+                                </div>
+                              </div>
+
+                              {/* 4. Declined / Objections */}
+                              <div className="bg-white border border-amber-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between relative overflow-hidden">
+                                <div className="h-1 w-full bg-amber-500 absolute top-0 left-0" />
+                                <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
+                                  Declined Calls
+                                </div>
+                                <div className="text-2xl font-black text-amber-600 my-1">
+                                  {totalRejections > 0 ? totalRejections : `${analysisResult.feedbackBreakdown.rejectionsPercent}%`}
+                                </div>
+                                <div className="text-[11px] text-amber-800 font-medium">
+                                  {rejectionRate}% declined / busy
+                                </div>
+                              </div>
+
+                              {/* 5. Callbacks Scheduled */}
+                              <div className="bg-white border border-blue-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between relative overflow-hidden col-span-2 sm:col-span-1">
+                                <div className="h-1 w-full bg-blue-500 absolute top-0 left-0" />
+                                <div className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">
+                                  Callbacks Booked
+                                </div>
+                                <div className="text-2xl font-black text-blue-600 my-1">
+                                  {totalCallbacks}
+                                </div>
+                                <div className="text-[11px] text-blue-800 font-medium">
+                                  {analysisResult.appointmentInsights.appointmentRate}% of completed calls
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Customer Feeling / Sentiment Bar */}
+                            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div>
+                                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                                    Customer Sentiment Breakdown
+                                  </h4>
+                                  <p className="text-xs text-slate-500 mt-0.5">
+                                    Overall customer reaction across all recorded call feedback notes.
+                                  </p>
+                                </div>
+                                <div className="text-xs font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-800">
+                                  Tone: {analysisResult.sentimentBreakdown.positivePercent >= 50 ? 'Mostly Positive' : analysisResult.sentimentBreakdown.negativePercent >= 40 ? 'Needs Attention' : 'Balanced'}
+                                </div>
+                              </div>
+
+                              {/* Stacked Sentiment Bar */}
+                              <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                                <div 
+                                  className="h-full bg-emerald-500 transition-all duration-500" 
+                                  style={{ width: `${analysisResult.sentimentBreakdown.positivePercent}%` }} 
+                                  title={`Positive: ${analysisResult.sentimentBreakdown.positivePercent}%`}
+                                />
+                                <div 
+                                  className="h-full bg-slate-300 transition-all duration-500" 
+                                  style={{ width: `${analysisResult.sentimentBreakdown.neutralPercent}%` }} 
+                                  title={`Neutral: ${analysisResult.sentimentBreakdown.neutralPercent}%`}
+                                />
+                                <div 
+                                  className="h-full bg-rose-500 transition-all duration-500" 
+                                  style={{ width: `${analysisResult.sentimentBreakdown.negativePercent}%` }} 
+                                  title={`Negative: ${analysisResult.sentimentBreakdown.negativePercent}%`}
+                                />
+                              </div>
+
+                              {/* Legend */}
+                              <div className="flex items-center gap-4 text-xs flex-wrap pt-1">
+                                <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                                  <span>Positive & Won: <strong className="text-emerald-700">{analysisResult.sentimentBreakdown.positivePercent}%</strong></span>
+                                </div>
+                                <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+                                  <span>Neutral & Callbacks: <strong className="text-slate-800">{analysisResult.sentimentBreakdown.neutralPercent}%</strong></span>
+                                </div>
+                                <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                                  <span>Concerns & Complaints: <strong className="text-rose-700">{analysisResult.sentimentBreakdown.negativePercent}%</strong></span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Executive Summary Card in Plain English */}
+                            <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-2xs space-y-2.5">
+                              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-amber-500" />
+                                <span>Executive Summary (Plain English)</span>
+                              </h4>
+                              <div className="text-xs text-slate-700 leading-relaxed bg-slate-50/80 p-4 rounded-xl border border-slate-200/70 font-medium">
+                                {analysisResult.executiveSummary}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* TAB 2: Customer Complaints */}
+                        {resultsSection === 'complaints' && (
+                          <div className="space-y-4">
+                            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div>
+                                  <h4 className="text-sm font-bold text-slate-900">
+                                    Customer Complaints & Problems
+                                  </h4>
+                                  <p className="text-xs text-slate-500">
+                                    Real customer issues found in feedback notes, ranked by how many people complained.
+                                  </p>
+                                </div>
+                                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-rose-100 text-rose-800">
+                                  {analysisResult.topComplaints.length} Reported Issue{analysisResult.topComplaints.length === 1 ? '' : 's'}
+                                </span>
+                              </div>
+
+                              {analysisResult.topComplaints.length === 0 ? (
+                                <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-2">
+                                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                                  <h5 className="text-sm font-bold text-slate-900">No Customer Complaints Found</h5>
+                                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                                    None of the customers in this batch reported product issues, tariff complaints, or app errors in their feedback notes.
                                   </p>
                                 </div>
                               ) : (
-                                <div className="mt-2 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                  <strong className="text-slate-800">Customer Sentiment & Feedback:</strong> {ag.customerSentimentSummary}
+                                <div className="space-y-3">
+                                  {analysisResult.topComplaints.map((item, idx) => (
+                                    <div 
+                                      key={idx}
+                                      className="border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-all bg-white space-y-3"
+                                    >
+                                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                                        <div>
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                              item.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-800' :
+                                              item.severity === 'HIGH' ? 'bg-amber-100 text-amber-800' :
+                                              'bg-blue-100 text-blue-800'
+                                            }`}>
+                                              {item.severity === 'CRITICAL' ? 'Urgent Attention' : item.severity === 'HIGH' ? 'High Priority' : 'Standard Note'}
+                                            </span>
+                                            <span className="text-xs text-slate-400 font-semibold">•</span>
+                                            <span className="text-xs font-semibold text-slate-600">{item.category}</span>
+                                          </div>
+                                          <h5 className="text-sm font-bold text-slate-900 mt-1">
+                                            {item.issue}
+                                          </h5>
+                                          {item.affectedBranches && item.affectedBranches.length > 0 && (
+                                            <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Reported from:</span>
+                                              {item.affectedBranches.map((br, bIdx) => (
+                                                <span key={bIdx} className="text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-md">
+                                                  {br}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        <div className="text-right shrink-0">
+                                          <div className="text-lg font-black text-rose-600">{item.percentage}%</div>
+                                          <div className="text-[10px] text-slate-500 font-medium">{item.count} Customer{item.count === 1 ? '' : 's'}</div>
+                                        </div>
+                                      </div>
+
+                                      {/* Real Customer Quotes translated into English */}
+                                      {item.customerQuotes && item.customerQuotes.length > 0 && (
+                                        <div className="space-y-1.5">
+                                          <div className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                                            Customer Quote & English Translation:
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            {item.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'indigo'))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Why this happened (Root Cause) */}
+                                      <div className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                        <strong className="text-slate-900">Why this happened:</strong> {item.rootCause}
+                                      </div>
+
+                                      {/* How to resolve this */}
+                                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 flex items-start gap-2">
+                                        <Lightbulb className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                        <div className="text-xs text-emerald-950">
+                                          <strong className="font-bold">How to resolve this:</strong> {item.actionRecommendation}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </div>
+                          </div>
+                        )}
 
-                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                              <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
-                                <Lightbulb className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Coaching on How to Overcome Objections:</span>
+                        {/* TAB 3: Decisions (Yes vs No) */}
+                        {resultsSection === 'feedback' && (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Why Customers Said Yes (Positive Feedback) */}
+                              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                                <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
+                                  <ThumbsUp className="w-4 h-4" />
+                                  <h4>Why Customers Said Yes (Positive Feedback)</h4>
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                  What customers liked most about MyCash services and why they decided to register.
+                                </p>
+
+                                {analysisResult.topAppreciations.length === 0 ? (
+                                  <div className="p-4 text-center bg-slate-50 rounded-lg text-xs text-slate-500">
+                                    No positive praise notes recorded in this batch.
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {analysisResult.topAppreciations.map((apprec, idx) => (
+                                      <div key={idx} className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                          <h5 className="font-bold text-xs text-emerald-950">{apprec.theme}</h5>
+                                          <span className="text-xs font-black text-emerald-700">{apprec.percentage}%</span>
+                                        </div>
+                                        {apprec.customerQuotes && apprec.customerQuotes.length > 0 && (
+                                          <div className="space-y-1.5">
+                                            <div className="space-y-1.5">
+                                              {apprec.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'emerald'))}
+                                            </div>
+                                          </div>
+                                        )}
+                                        <div className="text-[11px] text-emerald-900 font-medium">
+                                          <strong>What worked:</strong> {apprec.keyDriver}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                              <p className="text-xs text-emerald-950 font-medium mt-1 leading-snug">
-                                {ag.tailoredCoachingAdvice}
+
+                              {/* Why Customers Declined (Common Objections) */}
+                              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                                <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
+                                  <ThumbsDown className="w-4 h-4" />
+                                  <h4>Why Customers Declined (Objections)</h4>
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                  Main reasons customers hesitated or declined, with helpful tips on what agents can say.
+                                </p>
+
+                                {analysisResult.rejectionAnalysis.length === 0 ? (
+                                  <div className="p-4 text-center bg-slate-50 rounded-lg text-xs text-slate-500">
+                                    No rejection reasons recorded in this batch.
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {analysisResult.rejectionAnalysis.map((rej, idx) => (
+                                      <div key={idx} className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-2">
+                                        <div className="flex items-center justify-between">
+                                          <h5 className="font-bold text-xs text-slate-900">{rej.reason}</h5>
+                                          <span className="text-xs font-black text-amber-600 shrink-0">{rej.percentage}% of declines</span>
+                                        </div>
+                                        <p className="text-xs text-slate-600">
+                                          <strong className="text-slate-800">Customer reaction:</strong> {rej.customerExplanation}
+                                        </p>
+                                        {rej.customerQuotes && rej.customerQuotes.length > 0 && (
+                                          <div className="space-y-1.5">
+                                            <div className="space-y-1.5">
+                                              {rej.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'amber'))}
+                                            </div>
+                                          </div>
+                                        )}
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-xs text-blue-950">
+                                          <strong className="text-blue-800">What Agent Should Say:</strong> {rej.overcomingScript}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* TAB 4: Scheduled Callbacks */}
+                        {resultsSection === 'callbacks' && (
+                          <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-2xs space-y-4">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div>
+                                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                  <Calendar className="w-4 h-4 text-blue-600" />
+                                  <span>Scheduled Customer Callbacks & Appointments</span>
+                                </h4>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                  Customers who requested a callback or follow-up phone appointment.
+                                </p>
+                              </div>
+                              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                {totalCallbacks} Callback{totalCallbacks === 1 ? '' : 's'} Booked
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200">
+                                <div className="text-xs font-bold text-blue-800">Callback Booking Rate</div>
+                                <div className="text-2xl font-black text-blue-900 mt-1">
+                                  {analysisResult.appointmentInsights.appointmentRate}%
+                                </div>
+                                <div className="text-[11px] text-blue-700 mt-0.5">
+                                  {totalCallbacks} out of {totalCalls > 0 ? totalCalls : analysisResult.totalRecordsAnalyzed} calls requested callbacks
+                                </div>
+                              </div>
+
+                              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                                <div className="text-xs font-bold text-slate-800">Agent Follow-up Rule</div>
+                                <div className="text-xs text-slate-600 mt-1 leading-relaxed">
+                                  {analysisResult.appointmentInsights.actionableFollowupAdvice}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Customer Callbacks Table */}
+                            {analysisResult.appointmentInsights.sampleAppointments && analysisResult.appointmentInsights.sampleAppointments.length > 0 ? (
+                              <div className="border border-slate-200 rounded-xl overflow-hidden mt-3">
+                                <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                                    <span>Callback Schedule List ({analysisResult.appointmentInsights.sampleAppointments.length} records)</span>
+                                  </span>
+                                  <span className="text-[11px] text-slate-500">Extracted from Excel feedback notes</span>
+                                </div>
+                                <div className="overflow-x-auto max-h-[440px]">
+                                  <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0 border-b border-slate-200">
+                                      <tr>
+                                        <th className="p-2.5">Customer Name</th>
+                                        <th className="p-2.5">Phone Number</th>
+                                        <th className="p-2.5">Calling Agent</th>
+                                        <th className="p-2.5">Branch</th>
+                                        <th className="p-2.5">Agreed Time</th>
+                                        <th className="p-2.5">Customer Note</th>
+                                        <th className="p-2.5 text-center">Status</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {analysisResult.appointmentInsights.sampleAppointments.map((appt, idx) => (
+                                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                          <td className="p-2.5 font-bold text-slate-900">{appt.customerName}</td>
+                                          <td className="p-2.5 text-slate-600 font-mono text-[11px]">{appt.phoneNumber || '-'}</td>
+                                          <td className="p-2.5 text-slate-800 font-medium">{appt.agentName}</td>
+                                          <td className="p-2.5 text-slate-600">{appt.branch}</td>
+                                          <td className="p-2.5 font-bold text-blue-700">{appt.appointmentTime}</td>
+                                          <td className="p-2.5 text-slate-700 max-w-xs">
+                                            {appt.feedbackNote ? (() => {
+                                              const formatted = formatQuoteWithTranslation(appt.feedbackNote);
+                                              const parts = formatted.split(/\s*—\s*\(English translation:\s*|\s*—\s*\(English:\s*/i);
+                                              if (parts.length >= 2) {
+                                                const somali = parts[0].replace(/^["']|["']$/g, '').trim();
+                                                const english = parts[1].replace(/\)$/, '').replace(/^["']|["']$/g, '').trim();
+                                                return (
+                                                  <div className="space-y-0.5">
+                                                    <div className="text-[11px] font-medium text-slate-900 italic font-serif">"{somali}"</div>
+                                                    <div className="text-[10px] text-blue-700 font-medium">↳ {english}</div>
+                                                  </div>
+                                                );
+                                              }
+                                              return <span className="italic">{appt.feedbackNote}</span>;
+                                            })() : '-'}
+                                          </td>
+                                          <td className="p-2.5 text-center">
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                                              {appt.status}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
+                                No scheduled callbacks found in the current customer records.
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* TAB 5: Team & Branch Performance */}
+                        {resultsSection === 'performance' && (
+                          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-4">
+                            <div className="flex items-center justify-between flex-wrap gap-3 pb-2 border-b border-slate-100">
+                              <div>
+                                <h4 className="text-sm font-bold text-slate-900">
+                                  Team & Branch Performance
+                                </h4>
+                                <p className="text-xs text-slate-500">
+                                  Compare call activity, customer conversion rates, and practical coaching advice.
+                                </p>
+                              </div>
+
+                              {/* Toggle between Agents and Branches */}
+                              <div className="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setPerformanceView('agents')}
+                                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                                    performanceView === 'agents'
+                                      ? 'bg-white text-slate-900 shadow-2xs'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  Calling Agents ({analysisResult.agentSummaries.length})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPerformanceView('branches')}
+                                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                                    performanceView === 'branches'
+                                      ? 'bg-white text-slate-900 shadow-2xs'
+                                      : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  Regional Branches ({analysisResult.branchPerformances.length})
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* AGENTS VIEW */}
+                            {performanceView === 'agents' && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {analysisResult.agentSummaries.map((ag, idx) => (
+                                  <div 
+                                    key={idx}
+                                    className="p-4 rounded-xl border border-slate-200 hover:border-slate-300 transition-all bg-white flex flex-col justify-between space-y-3"
+                                  >
+                                    <div>
+                                      <div className="flex items-center justify-between">
+                                        <div>
+                                          <h5 className="font-bold text-sm text-slate-900">{ag.agentName}</h5>
+                                          <div className="text-[11px] text-slate-500 font-medium">{ag.branch} Branch</div>
+                                        </div>
+                                        <div className="text-right">
+                                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                            ag.conversionRate >= 40 ? 'bg-emerald-100 text-emerald-800' :
+                                            ag.conversionRate >= 20 ? 'bg-blue-100 text-blue-800' :
+                                            'bg-slate-100 text-slate-800'
+                                          }`}>
+                                            {ag.conversionRate}% Success
+                                          </span>
+                                          <div className="text-[10px] text-slate-500 mt-1">
+                                            Assigned: <strong>{ag.totalAssigned}</strong> | Calls: <strong>{ag.callsMade}</strong> | Won: <strong className="text-emerald-700">{ag.conversions}</strong>
+                                            {typeof ag.rejections === 'number' && (
+                                              <span> | Declined: <strong className="text-amber-700">{ag.rejections}</strong></span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {ag.customerSentimentSummary.includes('CRITICAL') || ag.customerSentimentSummary.includes('several times') || ag.customerSentimentSummary.includes('multiple times') || ag.customerSentimentSummary.includes('Over-dialing') ? (
+                                        <div className="mt-2 text-xs text-rose-900 bg-rose-50 p-2.5 rounded-lg border border-rose-200 space-y-1">
+                                          <div className="flex items-center gap-1.5 font-bold text-rose-800 text-[11px] uppercase tracking-wider">
+                                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                            <span>Notice: Customer Over-Calling Pushback</span>
+                                          </div>
+                                          <p className="text-slate-800 leading-relaxed font-medium">
+                                            {ag.customerSentimentSummary}
+                                          </p>
+                                        </div>
+                                      ) : (
+                                        <div className="mt-2 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                          <strong className="text-slate-800">Customer Feedback Summary:</strong> {ag.customerSentimentSummary}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                                      <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                                        <Lightbulb className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Helpful Coaching Advice:</span>
+                                      </div>
+                                      <p className="text-xs text-emerald-950 font-medium mt-1 leading-snug">
+                                        {ag.tailoredCoachingAdvice}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* BRANCHES VIEW */}
+                            {performanceView === 'branches' && (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse text-xs">
+                                  <thead>
+                                    <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                      <th className="p-3">Branch Name</th>
+                                      <th className="p-3 text-center">Leads</th>
+                                      <th className="p-3 text-center">Calls Made</th>
+                                      <th className="p-3 text-center">Success %</th>
+                                      <th className="p-3">Main Customer Feedback</th>
+                                      <th className="p-3">What Works Well</th>
+                                      <th className="p-3">Area to Improve</th>
+                                      <th className="p-3">Manager Tip</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {analysisResult.branchPerformances.map((b, idx) => (
+                                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 font-bold text-slate-900">{b.branchName}</td>
+                                        <td className="p-3 text-center text-slate-600">{b.totalLeads}</td>
+                                        <td className="p-3 text-center text-slate-600">{b.callsMade}</td>
+                                        <td className="p-3 text-center">
+                                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                            b.successRate >= 45 ? 'bg-emerald-100 text-emerald-800' :
+                                            b.successRate >= 25 ? 'bg-blue-100 text-blue-800' :
+                                            'bg-rose-100 text-rose-800'
+                                          }`}>
+                                            {b.successRate}%
+                                          </span>
+                                        </td>
+                                        <td className="p-3 text-slate-700">{b.dominantComplaint}</td>
+                                        <td className="p-3 text-emerald-700">{b.strengths}</td>
+                                        <td className="p-3 text-rose-700">{b.bottlenecks}</td>
+                                        <td className="p-3 text-slate-700 italic font-medium">{b.managerialAdvice}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* TAB 6: Action Plan (Next Steps) */}
+                        {resultsSection === 'actions' && (
+                          <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-2xs space-y-4">
+                            <div>
+                              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <TrendingUp className="w-4 h-4 text-red-600" />
+                                <span>Recommended Next Steps (Action Plan)</span>
+                              </h4>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                Simple, practical priorities to boost customer conversions and address feedback.
                               </p>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
-                  {/* Subtab 7: Strategic Leadership Roadmap */}
-                  {resultsSection === 'roadmap' && (
-                    <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-2xs space-y-4">
-                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-red-600" />
-                        Strategic Overcome Roadmap (Executive Actions)
-                      </h4>
-
-                      <div className="space-y-3">
-                        {analysisResult.strategicOvercomeAdvices.map((adv, idx) => (
-                          <div 
-                            key={idx}
-                            className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">
-                                {adv.priority}
-                              </span>
-                              <h5 className="font-bold text-sm text-slate-900">
-                                {adv.title}
-                              </h5>
-                            </div>
-                            <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                              {adv.description}
-                            </p>
-                            <div className="text-xs text-emerald-700 font-semibold">
-                              Expected Business Impact: {adv.expectedImpact}
+                            <div className="space-y-3">
+                              {analysisResult.strategicOvercomeAdvices.map((adv, idx) => (
+                                <div 
+                                  key={idx}
+                                  className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-white">
+                                      {adv.priority}
+                                    </span>
+                                    <h5 className="font-bold text-sm text-slate-900">
+                                      {adv.title}
+                                    </h5>
+                                  </div>
+                                  <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                                    {adv.description}
+                                  </p>
+                                  <div className="text-xs text-emerald-700 font-semibold">
+                                    Expected Result: {adv.expectedImpact}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               ) : (
                 <div className="py-16 text-center max-w-md mx-auto space-y-4">

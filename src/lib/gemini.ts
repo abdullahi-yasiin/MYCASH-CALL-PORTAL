@@ -1,4 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
 import { CustomerRecord, BranchInfo, User } from '../types';
 
 export interface AiComplaintItem {
@@ -524,108 +523,94 @@ export function formatQuoteWithTranslation(rawQuote: string): string {
 }
 
 /**
- * Dispatches the analysis prompt through:
- * 1. Netlify Serverless Function proxy (/api/ai-intelligence) - primary path on deployed Netlify sites
- * 2. Client-side @google/genai SDK instance - direct path in AI Studio development or when client key is available
+ * Dispatches the analysis prompt through the server-side AI Intelligence route (/api/ai-intelligence).
+ * All Gemini model inference is executed securely on the server.
  */
 async function executeGeminiPrompt(prompt: string): Promise<{ data: AiAnalysisResult; engine: string }> {
-  // Check for API key in env vars or local storage configured by user
-  const storedUserKey = typeof window !== 'undefined' ? localStorage.getItem('mycash_gemini_api_key') : null;
-  const clientKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || 
-                    (typeof process !== 'undefined' && process.env ? process.env.GEMINI_API_KEY : '') || 
-                    storedUserKey || 
-                    '';
-
-  // Strategy 1: Call Netlify serverless endpoint (/api/ai-intelligence)
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (clientKey) {
-      headers['Authorization'] = `Bearer ${clientKey}`;
-    }
-
-    const response = await fetch('/api/ai-intelligence', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        prompt,
-        apiKey: clientKey || undefined,
-        candidateModels: ['gemini-3.1-flash-lite', 'gemini-3.8-flash']
-      })
-    });
-
-    if (response.ok) {
-      const resJson = await response.json();
-      if (resJson.success && resJson.data) {
-        console.log(`[Gemini AI] Analysis generated successfully via Netlify Function (/api/ai-intelligence) using ${resJson.model || 'Gemini 3.1 Flash Lite'}`);
-        return {
-          data: resJson.data as AiAnalysisResult,
-          engine: `${resJson.model || 'gemini-3.1-flash-lite'} (Netlify Serverless)`
-        };
-      }
-    } else {
-      const errBody = await response.text().catch(() => '');
-      console.warn(`[Gemini AI] /api/ai-intelligence returned HTTP ${response.status}:`, errBody);
-    }
-  } catch (apiErr: any) {
-    console.warn('[Gemini AI] Serverless /api/ai-intelligence endpoint unreachable or failed, attempting direct SDK fallback:', apiErr?.message || apiErr);
-  }
-
-  // Strategy 2: Direct client-side SDK invocation
-  if (!clientKey) {
-    throw new Error('Gemini API key is not configured. On Netlify, set GEMINI_API_KEY in Site Settings > Environment Variables, or enter your key in the AI Intelligence settings.');
-  }
-
-  const ai = new GoogleGenAI({
-    apiKey: clientKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build'
-      }
-    }
+  const response = await fetch('/api/ai-intelligence', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      prompt,
+      candidateModels: ['gemini-3.1-flash-lite', 'gemini-3.8-flash']
+    })
   });
 
-  const candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
-  let text: string | undefined;
-  let successfulModel = '';
-  let lastErr: any = null;
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({ error: `Server returned status ${response.status}` }));
+    throw new Error(errBody.error || `Server AI endpoint returned status ${response.status}`);
+  }
 
-  for (const model of candidateModels) {
-    try {
-      console.log(`[Gemini AI] Direct client invocation using model: ${model}`);
-      const res = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.2
-        }
-      });
+  const resJson = await response.json();
+  if (!resJson.success || !resJson.data) {
+    throw new Error(resJson.error || 'Server did not return valid analysis data');
+  }
 
-      if (res.text && res.text.trim().length > 0) {
-        text = res.text;
-        successfulModel = model;
-        console.log(`[Gemini AI] Analysis generated successfully via direct SDK using ${model}`);
-        break;
+  return {
+    data: resJson.data as AiAnalysisResult,
+    engine: `${resJson.model || 'gemini-3.8-flash'} (Server-side)`
+  };
+}
+
+/**
+ * Server-side content generator for any text generation task
+ */
+export async function generateServerContent(prompt: string, model: string = 'gemini-3.8-flash'): Promise<string> {
+  const res = await fetch('/api/gemini/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, model })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `Failed to generate server content: HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.text || '';
+}
+
+/**
+ * Server-side streaming generator via Server-Sent Events (SSE)
+ */
+export async function* streamServerContent(prompt: string, model: string = 'gemini-3.8-flash'): AsyncGenerator<string> {
+  const res = await fetch('/api/gemini/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, model })
+  });
+
+  if (!res.ok || !res.body) {
+    throw new Error(`Failed to stream content: HTTP ${res.status}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data: ')) continue;
+      const dataStr = trimmed.slice(6).trim();
+      if (dataStr === '[DONE]') return;
+      try {
+        const parsed = JSON.parse(dataStr);
+        if (parsed.text) yield parsed.text;
+      } catch {
+        // ignore incomplete chunks
       }
-    } catch (modelErr: any) {
-      lastErr = modelErr;
-      console.warn(`[Gemini AI] Direct model ${model} failed:`, modelErr?.message || modelErr);
     }
   }
-
-  if (!text) {
-    throw new Error(lastErr?.message || 'Empty response received from Gemini models');
-  }
-
-  let parsed: AiAnalysisResult;
-  try {
-    parsed = JSON.parse(text) as AiAnalysisResult;
-  } catch (pe) {
-    const clean = text.replace(/^[^{[]*/, '').replace(/[^}\]]*$/, '');
-    parsed = JSON.parse(clean) as AiAnalysisResult;
-  }
-
-  return { data: parsed, engine: `${successfulModel || 'gemini-3.8-flash'} (Direct Cloud)` };
 }
 
 /**
@@ -1834,13 +1819,7 @@ export async function generateWhatsAppSmsTemplate(
     }
   ];
 
-  // Try calling Gemini AI if available
-  const storedUserKey = typeof window !== 'undefined' ? localStorage.getItem('mycash_gemini_api_key') : null;
-  const clientKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || 
-                    (typeof process !== 'undefined' && process.env ? process.env.GEMINI_API_KEY : '') || 
-                    storedUserKey || 
-                    '';
-
+  // Try calling Gemini AI via server proxy
   const prompt = `You are an expert financial services copywriter and customer retention strategist for "MyCash" (a leading mobile money and digital banking service in Somalia).
 Generate 3 distinct, high-converting WhatsApp SMS message templates for the following campaign:
 
@@ -1874,28 +1853,10 @@ CRITICAL RULES:
 ]`;
 
   try {
-    if (clientKey) {
-      const ai = new GoogleGenAI({
-        apiKey: clientKey,
-        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
-      });
-      const res = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: { responseMimeType: 'application/json', temperature: 0.3 }
-      });
-      if (res.text && res.text.trim().length > 0) {
-        const parsed = JSON.parse(res.text) as GeneratedSmsTemplateOption[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    }
-
     const resp = await fetch('/api/ai-intelligence', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, candidateModels: ['gemini-3.8-flash'] })
+      body: JSON.stringify({ prompt, candidateModels: ['gemini-3.8-flash', 'gemini-3.1-flash-lite'] })
     });
     if (resp.ok) {
       const json = await resp.json();

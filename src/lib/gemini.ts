@@ -1417,7 +1417,19 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
 
     const { data: parsed, engine } = await executeGeminiPrompt(prompt);
 
-    // 1. Reconcile Agent Calling Evaluation table so that it strictly fetches total/assigned leads correctly from real data
+    // 1. Generate factual baseline to strictly anchor all quantitative numbers, counts, and percentages
+    // This prevents any AI hallucinations or made-up statistics when deployed on Netlify.
+    const baseline = generateOfflineHeuristicAnalysis(records, branches, agents, datePeriod);
+    parsed.totalRecordsAnalyzed = baseline.totalRecordsAnalyzed;
+    parsed.feedbackBreakdown = baseline.feedbackBreakdown;
+    parsed.sentimentBreakdown = baseline.sentimentBreakdown;
+    parsed.branchPerformances = baseline.branchPerformances;
+    parsed.agentSummaries = baseline.agentSummaries;
+    parsed.appointmentInsights.totalAppointments = baseline.appointmentInsights.totalAppointments;
+    parsed.appointmentInsights.appointmentRate = baseline.appointmentInsights.appointmentRate;
+    parsed.appointmentInsights.sampleAppointments = baseline.appointmentInsights.sampleAppointments;
+
+    // 2. Reconcile Agent Calling Evaluation table so that it strictly fetches total/assigned leads correctly from real data
     const realAgentPerformanceMap = new Map<string, { totalAssigned: number; callsMade: number; conversions: number; rejections: number; convRate: number; branch: string; sentiment: string; coaching: string }>();
 
     effectiveAgents.forEach(ag => {

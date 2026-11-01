@@ -35,15 +35,20 @@ export const handler = async (event: any) => {
   // Obtain Gemini API key from Netlify environment variables, auth header, or payload
   const authHeader = event.headers?.authorization || event.headers?.Authorization;
   const authKey = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
-  const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || authKey || payload.apiKey || '';
+  const apiKey = process.env.GEMINI_API_KEY || 
+                 process.env.VITE_GEMINI_API_KEY || 
+                 process.env.GOOGLE_API_KEY || 
+                 authKey || 
+                 payload.apiKey || 
+                 '';
 
   if (!apiKey) {
-    console.error('[Netlify AI Intelligence] Missing GEMINI_API_KEY or VITE_GEMINI_API_KEY in environment variables.');
+    console.error('[Netlify AI Intelligence] Missing GEMINI_API_KEY, VITE_GEMINI_API_KEY, or GOOGLE_API_KEY in environment variables.');
     return {
       statusCode: 400,
       headers,
       body: JSON.stringify({ 
-        error: 'Gemini API key is not configured in Netlify Site Settings (Environment Variables: GEMINI_API_KEY or VITE_GEMINI_API_KEY).',
+        error: 'Gemini API key is not configured in Netlify Site Settings (Environment Variables: GEMINI_API_KEY, VITE_GEMINI_API_KEY, or GOOGLE_API_KEY).',
         code: 'MISSING_API_KEY'
       })
     };

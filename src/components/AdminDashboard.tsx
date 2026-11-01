@@ -736,17 +736,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </p>
         </div>
 
-        {/* Selected target element: Action Buttons container (equal size on mobile view) */}
+        {/* Selected target element: Action Buttons container */}
         <div 
           id="admin-banner-action-buttons" 
-          className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-2 shrink-0 w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t border-slate-800/80 md:border-t-0"
+          className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0 w-full md:w-auto mt-2 md:mt-0 pt-2 md:pt-0 border-t border-slate-800/80 md:border-t-0"
         >
           {/* AI Intelligence & Feedback Analytics Button */}
           {onOpenAiIntelligence && (
             <button
               id="btn-admin-ai-intelligence"
               onClick={onOpenAiIntelligence}
-              className="w-full sm:w-auto sm:flex-initial h-8 sm:h-9 flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-3 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-red-500/50 shadow-xs cursor-pointer active:scale-95 min-w-0"
+              className="flex-1 sm:flex-initial h-8 sm:h-9 flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-red-500/50 shadow-xs cursor-pointer active:scale-95 min-w-0"
               title="Launch AI Intelligence & Feedback Analytics (Somali Language & PDF Report)"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse shrink-0" />
@@ -759,7 +759,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               id="btn-admin-whatsapp-sms"
               onClick={onOpenWhatsAppSms}
-              className="w-full sm:w-auto sm:flex-initial h-8 sm:h-9 flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-emerald-500/50 shadow-xs cursor-pointer active:scale-95 min-w-0"
+              className="flex-1 sm:flex-initial h-8 sm:h-9 flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-emerald-500/50 shadow-xs cursor-pointer active:scale-95 min-w-0"
               title="Launch WhatsApp SMS Automation & Broadcast Hub (Excel Status & >90 Days Dormancy)"
             >
               <MessageSquare className="w-3.5 h-3.5 text-emerald-100 shrink-0" />
@@ -767,24 +767,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           )}
 
-          {/* Proposal Document (PDF) Trigger Button */}
-          {onOpenProposalDoc && (
-            <button
-              id="btn-admin-proposal-doc"
-              onClick={onOpenProposalDoc}
-              className="w-full sm:w-auto sm:flex-initial h-8 sm:h-9 flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-3 bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-800 hover:from-blue-600 hover:to-indigo-600 text-white text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-blue-500/50 shadow-xs cursor-pointer active:scale-95 min-w-0"
-              title="Open Official Project Proposal Document with Timeline, Features, Pricing, and Downloadable 6-Page PDF"
-            >
-              <FileText className="w-3.5 h-3.5 text-blue-200 shrink-0" />
-              <span className="truncate">Proposal Doc (PDF)</span>
-            </button>
-          )}
-
           {onOpenUserManagement && (
             <button
               id="btn-admin-manage-rbac"
               onClick={onOpenUserManagement}
-              className="w-full sm:w-auto sm:flex-initial h-8 sm:h-9 flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-3 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95 min-w-0"
+              className="flex-1 sm:flex-initial h-8 sm:h-9 flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[9px] sm:text-xs font-bold rounded-lg sm:rounded-xl transition-all border border-slate-700 shadow-2xs cursor-pointer active:scale-95 min-w-0"
               title="Configure system users, roles, and granular permission matrix"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />

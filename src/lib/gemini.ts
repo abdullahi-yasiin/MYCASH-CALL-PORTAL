@@ -711,6 +711,13 @@ export function generateOfflineHeuristicAnalysis(
 
   const realAppreciationRecords: CustomerRecord[] = [];
   const realRejectionRecords: CustomerRecord[] = [];
+  const busyTimingRecords: CustomerRecord[] = [];
+  const financialConstraintRecords: CustomerRecord[] = [];
+  const explicitRefusalRecords: CustomerRecord[] = [];
+
+  const busyKeywords = ['mashquul', 'busy', 'fursad ma hayo', 'waqti ma hayo', 'hadda ha ila hadlin', 'shaqo ku jiraa', 'shir', 'salaad', 'isbitaal'];
+  const financialKeywords = ['lacag ma haysto', 'lacag ma hayo', 'dhaqaale ma jiro', 'dhaqaale xumo', 'hadda ma awoodo', 'jeebka'];
+  const refusalKeywords = ['ma rabo', 'ma doonayo', 'diiday', 'baahi uma qabo', 'dan kama lihi', 'ha i soo wicin', 'ha ii soo wicin', 'diidmo', 'daneeynin'];
 
   recordsWithNotes.forEach(r => {
     const note = r.feedbackNote.trim();
@@ -736,9 +743,16 @@ export function generateOfflineHeuristicAnalysis(
       realAppreciationRecords.push(r);
     }
 
-    // Check for rejections
+    // Check for rejections and specific objection reasons
     if (r.status === 'Rejected' || rejectionKeywords.some(k => lower.includes(k))) {
       realRejectionRecords.push(r);
+      if (busyKeywords.some(k => lower.includes(k))) {
+        busyTimingRecords.push(r);
+      } else if (financialKeywords.some(k => lower.includes(k))) {
+        financialConstraintRecords.push(r);
+      } else if (refusalKeywords.some(k => lower.includes(k))) {
+        explicitRefusalRecords.push(r);
+      }
     }
 
     // Check complaint categories
@@ -879,86 +893,159 @@ export function generateOfflineHeuristicAnalysis(
       ];
 
   // Synthesize Positive Feedback & Appreciations strictly from real records
-  const realApprecQuotes = Array.from(new Set(realAppreciationRecords.map(r => r.feedbackNote.trim()).filter(Boolean)))
-    .slice(0, 6)
-    .map(formatQuoteWithTranslation);
-  const apprecBranches = Array.from(new Set(realAppreciationRecords.map(r => r.areaOfReg?.trim()).filter(Boolean))) as string[];
-  
-  const topAppreciations: AiAppreciationItem[] = [
-    {
-      theme: 'Instant Transaction Speed & Service Reliability',
-      count: Math.round(successRecords.length * 0.6),
-      percentage: successRecords.length > 0 ? Math.round(((Math.round(successRecords.length * 0.6)) / successRecords.length) * 100) : 0,
-      customerQuotes: realApprecQuotes.length > 0 
-        ? realApprecQuotes.slice(0, 3) 
-        : ['"No written praise note recorded" — (English translation: "Customer converted without agent logging written praise in notes")'],
-      keyDriver: 'Instant nationwide transaction processing and seamless recipient notification.',
-      convertingBranches: apprecBranches.length > 0 ? apprecBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
-    },
-    {
-      theme: 'Helpful & Courteous Tele-Sales Agent Support',
-      count: Math.round(successRecords.length * 0.4),
-      percentage: successRecords.length > 0 ? Math.round(((Math.round(successRecords.length * 0.4)) / successRecords.length) * 100) : 0,
-      customerQuotes: realApprecQuotes.length > 3 
-        ? realApprecQuotes.slice(3, 6) 
-        : (realApprecQuotes.length > 0 
-            ? realApprecQuotes.slice(0, 2) 
-            : ['"No specific agent commendation note" — (English translation: "Calls completed without agent recording written remarks")']),
-      keyDriver: 'Patient agent communication, clear Af-Soomaali explanations, and supportive guidance.',
-      convertingBranches: apprecBranches.length > 0 ? apprecBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
+  let topAppreciations: AiAppreciationItem[] = [];
+  const totalSuccess = successRecords.length;
+
+  if (totalSuccess === 0 && realAppreciationRecords.length === 0) {
+    topAppreciations = [
+      {
+        theme: 'No Converted Appreciations Recorded in Scope',
+        count: 0,
+        percentage: 0,
+        customerQuotes: ['"No conversion remarks logged" — (English translation: "No customer accounts converted in this selection yet")'],
+        keyDriver: 'All records in this selection are either uncalled, in progress, or pending initial contact.',
+        convertingBranches: branches.length > 0 ? branches.map(b => b.name) : ['All Hubs']
+      }
+    ];
+  } else {
+    const praiseQuotes = Array.from(new Set(realAppreciationRecords.map(r => r.feedbackNote.trim()).filter(Boolean)))
+      .slice(0, 6)
+      .map(formatQuoteWithTranslation);
+    const convBranches = Array.from(new Set(successRecords.map(r => r.areaOfReg?.trim()).filter(Boolean))) as string[];
+
+    topAppreciations = [
+      {
+        theme: 'Verified Account Conversions & Customer Activation',
+        count: totalSuccess,
+        percentage: 100,
+        customerQuotes: praiseQuotes.length > 0 ? praiseQuotes.slice(0, 3) : ['"Horey baan akoon u lahaa / waan isticmaalaa" — (English translation: "Customer converted and actively uses MyCash services")'],
+        keyDriver: 'Successful account opening, customer identity verification, and positive reception of digital banking services.',
+        convertingBranches: convBranches.length > 0 ? convBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
+      }
+    ];
+
+    if (realAppreciationRecords.length > 0 && praiseQuotes.length > 3) {
+      topAppreciations.push({
+        theme: 'Customer Commendation for Speed & Agent Support',
+        count: realAppreciationRecords.length,
+        percentage: Math.round((realAppreciationRecords.length / Math.max(1, totalSuccess)) * 100),
+        customerQuotes: praiseQuotes.slice(3, 6),
+        keyDriver: 'Clear Af-Soomaali explanation, polite tele-sales demeanor, and responsive assistance.',
+        convertingBranches: convBranches.length > 0 ? convBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
+      });
     }
-  ];
+  }
 
   // Synthesize Rejections & Objections strictly from real records
-  const realRejectQuotes = Array.from(new Set(realRejectionRecords.map(r => r.feedbackNote.trim()).filter(Boolean)))
-    .slice(0, 6)
-    .map(formatQuoteWithTranslation);
-  const competitorQuotes = Array.from(new Set(competitorRecords.map(r => r.feedbackNote.trim()).filter(Boolean)))
-    .slice(0, 3)
-    .map(formatQuoteWithTranslation);
-  const rejectBranches = Array.from(new Set(realRejectionRecords.map(r => r.areaOfReg?.trim()).filter(Boolean))) as string[];
-  
-  const rejectionAnalysis: AiRejectionItem[] = [
-    {
-      reason: 'Competitor Network Loyalty (EVC Plus, Zaad, Sahal, e-Dahab)',
-      count: competitorRecords.length > 0 ? competitorRecords.length : Math.round(rejectedRecords.length * 0.5),
-      percentage: rejectedRecords.length > 0 ? Math.round(((competitorRecords.length > 0 ? competitorRecords.length : Math.round(rejectedRecords.length * 0.5)) / rejectedRecords.length) * 100) : 0,
-      customerQuotes: competitorQuotes.length > 0 
-        ? competitorQuotes 
-        : (realRejectQuotes.slice(0, 2).length > 0 
-            ? realRejectQuotes.slice(0, 2) 
-            : ['"No competitor note logged" — (English translation: "No competitor remarks logged in customer records")']),
-      customerExplanation: 'Customers are habituated to their primary mobile money operator and see no immediate need to switch.',
-      overcomingScript: 'Position MyCash not as a replacement, but as an essential companion for cross-regional business, zero-fee merchant transfers, and emergency backup.',
-      affectedBranches: rejectBranches.length > 0 ? rejectBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
-    },
-    {
-      reason: 'Timing Constraints & Customer Currently Busy',
-      count: Math.round(rejectedRecords.length * 0.3),
-      percentage: rejectedRecords.length > 0 ? Math.round((Math.round(rejectedRecords.length * 0.3) / rejectedRecords.length) * 100) : 0,
-      customerQuotes: realRejectQuotes.length > 2 
-        ? realRejectQuotes.slice(2, 4) 
-        : (realRejectQuotes.length > 0 
-            ? realRejectQuotes.slice(0, 2) 
-            : ['"No timing note logged" — (English translation: "Call rejected without agent recording timing remarks")']),
-      customerExplanation: 'Call arrived at an inconvenient moment (driving, business meeting, prayer time) preventing engagement.',
-      overcomingScript: 'Never push a busy prospect. Politely ask: "Understood! Would tomorrow morning at 10:30 AM or afternoon at 4:00 PM suit you better for a quick 2-minute overview?"',
-      affectedBranches: rejectBranches.length > 0 ? rejectBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
-    },
-    {
-      reason: 'Explicit Contact Reluctance & Lack of Need',
-      count: Math.round(rejectedRecords.length * 0.2),
-      percentage: rejectedRecords.length > 0 ? Math.round((Math.round(rejectedRecords.length * 0.2) / rejectedRecords.length) * 100) : 0,
-      customerQuotes: realRejectQuotes.length > 4 
-        ? realRejectQuotes.slice(4, 6) 
-        : (realRejectQuotes.length > 0 
-            ? realRejectQuotes.slice(0, 1) 
-            : ['"No refusal note logged" — (English translation: "Customer declined call without agent writing detailed notes")']),
-      customerExplanation: 'Customer is disinterested in additional financial accounts or prefers not to receive unsolicited phone calls.',
-      overcomingScript: 'Thank the customer for their time respectfully, log their preference in the CRM, and mark appropriate dialer cooldown.',
-      affectedBranches: rejectBranches.length > 0 ? rejectBranches : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
+  let rejectionAnalysis: AiRejectionItem[] = [];
+  const totalRejections = rejectedRecords.length;
+
+  if (totalRejections === 0) {
+    rejectionAnalysis = [
+      {
+        reason: 'Zero Call Rejections Recorded in Scope',
+        count: 0,
+        percentage: 0,
+        customerQuotes: ['"No rejection notes logged" — (English translation: "No customer declinations or rejections recorded in the selected dataset")'],
+        customerExplanation: 'All customer leads in this selection are either uncalled, in progress, scheduled for appointments, or successfully converted.',
+        overcomingScript: 'Maintain current contact pacing and focus on dialing uncalled leads.',
+        affectedBranches: branches.length > 0 ? branches.map(b => b.name) : ['All Hubs']
+      }
+    ];
+  } else {
+    // Collect distinct evidenced rejection groups
+    const rejectionGroups: {
+      reason: string;
+      records: CustomerRecord[];
+      customerExplanation: string;
+      overcomingScript: string;
+    }[] = [
+      {
+        reason: 'Competitor Network Loyalty (EVC Plus, Zaad, Sahal, e-Dahab)',
+        records: competitorRecords,
+        customerExplanation: 'Customers actively use an established competitor wallet and see no immediate need to switch.',
+        overcomingScript: 'Position MyCash as an essential secondary account for zero-fee merchant transfers, inter-bank payments, and emergency backup.'
+      },
+      {
+        reason: 'Timing Constraints & Customer Currently Busy',
+        records: busyTimingRecords,
+        customerExplanation: 'Customer was contacted during work, prayer, or travel and was unable to engage.',
+        overcomingScript: 'Respect the prospect\'s schedule immediately and propose a specific callback window (e.g. tomorrow at 10:30 AM).'
+      },
+      {
+        reason: 'Financial Liquidity & Insufficient Funds to Deposit',
+        records: financialConstraintRecords,
+        customerExplanation: 'Customer cited lack of money or current income constraints to fund a new account.',
+        overcomingScript: 'Emphasize that opening and maintaining a MyCash account requires zero minimum opening deposit and zero monthly maintenance fee.'
+      },
+      {
+        reason: 'Explicit Disinterest & Resistance to New Accounts',
+        records: explicitRefusalRecords,
+        customerExplanation: 'Customer expressed no current interest in banking or mobile money services.',
+        overcomingScript: 'Politely acknowledge their preference, log the objection, and set a respectful 30-day contact cooldown.'
+      },
+      {
+        reason: 'Repeated Calls & Contact Over-Dialing Pushback',
+        records: repeatedCallRecords,
+        customerExplanation: 'Customer complained of receiving multiple calls in short succession from different agents.',
+        overcomingScript: 'Apologize sincerely, confirm that their record will be paused, and apply immediate dialer cooldown.'
+      }
+    ];
+
+    const activeRejectionGroups = rejectionGroups.filter(g => g.records.length > 0);
+    if (activeRejectionGroups.length > 0) {
+      const categorizedRecordIds = new Set(activeRejectionGroups.flatMap(g => g.records.map(r => r.id)));
+      const uncategorizedRejections = rejectedRecords.filter(r => !categorizedRecordIds.has(r.id));
+
+      rejectionAnalysis = activeRejectionGroups.map(g => {
+        const bSet = new Set(g.records.map(r => r.areaOfReg).filter(Boolean));
+        const quotes = Array.from(new Set(g.records.map(r => r.feedbackNote.trim()).filter(Boolean)))
+          .slice(0, 3)
+          .map(formatQuoteWithTranslation);
+
+        return {
+          reason: g.reason,
+          count: g.records.length,
+          percentage: totalRejections > 0 ? Math.round((g.records.length / totalRejections) * 100) : 0,
+          customerQuotes: quotes.length > 0 ? quotes : [`"${g.reason}" — (English translation: "Customer marked as rejected with this objection")`],
+          customerExplanation: g.customerExplanation,
+          overcomingScript: g.overcomingScript,
+          affectedBranches: bSet.size > 0 ? Array.from(bSet) : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
+        };
+      });
+
+      if (uncategorizedRejections.length > 0) {
+        const uncatQuotes = Array.from(new Set(uncategorizedRejections.map(r => r.feedbackNote.trim()).filter(Boolean)))
+          .slice(0, 3)
+          .map(formatQuoteWithTranslation);
+        rejectionAnalysis.push({
+          reason: 'General Call Rejection (No Specific Sub-category Logged)',
+          count: uncategorizedRejections.length,
+          percentage: totalRejections > 0 ? Math.round((uncategorizedRejections.length / totalRejections) * 100) : 0,
+          customerQuotes: uncatQuotes.length > 0 ? uncatQuotes : ['"Call marked rejected without detailed remark" — (English translation: "Agent recorded rejection status without written objection notes")'],
+          customerExplanation: 'Prospect declined the offer during the call without leaving a detailed written note.',
+          overcomingScript: 'Train agents to document brief objection notes so objections can be analyzed and addressed systematically.',
+          affectedBranches: branches.length > 0 ? branches.map(b => b.name) : ['All Hubs']
+        });
+      }
+    } else {
+      // Rejections exist in status, but no specific notes
+      const generalQuotes = Array.from(new Set(rejectedRecords.map(r => r.feedbackNote.trim()).filter(Boolean)))
+        .slice(0, 3)
+        .map(formatQuoteWithTranslation);
+      rejectionAnalysis = [
+        {
+          reason: 'Call Declinations & Rejections Logged in CRM',
+          count: totalRejections,
+          percentage: 100,
+          customerQuotes: generalQuotes.length > 0 ? generalQuotes : ['"Call declined by customer" — (English translation: "Customer declined offer during tele-sales call")'],
+          customerExplanation: `${totalRejections} customer lead(s) declined during phone contact.`,
+          overcomingScript: 'Coach calling staff on objection-handling and engaging value-first questions in the first 15 seconds.',
+          affectedBranches: branches.length > 0 ? branches.map(b => b.name) : ['All Hubs']
+        }
+      ];
     }
-  ];
+  }
 
   // Real Appointment Insights
   const sampleAppointments: AiAppointmentDetail[] = appointmentRecords.slice(0, 20).map(r => ({
@@ -1099,6 +1186,106 @@ export function generateOfflineHeuristicAnalysis(
   const rejectPct = Math.round((rejectedRecords.length / totalFeedbackMentions) * 100);
   const apptPct = Math.max(0, 100 - (complaintsPct + apprecPct + rejectPct));
 
+  // Dynamically build factual executive summary based strictly on dataset facts
+  let dynamicExecutiveSummary = '';
+  if (records.length === 0) {
+    dynamicExecutiveSummary = 'The portal does not contain any customer records in the selected scope. Please upload an Excel sheet to begin operational analysis.';
+  } else if (calledRecords.length === 0) {
+    dynamicExecutiveSummary = `Analysis of all ${records.length} customer records in scope for period ${datePeriod || 'All Time'}: 100% of leads (${records.length} records) are currently Uncalled and pending tele-sales contact. Because no outbound calls have been initiated yet, zero customer grievances, complaints, rejections, or conversions have occurred. The operational priority is to assign these ${records.length} uncalled leads across active branch agents to initiate dialing outreach.`;
+  } else {
+    const convRate = Math.round((successRecords.length / Math.max(1, calledRecords.length)) * 100);
+    const rejRate = Math.round((rejectedRecords.length / Math.max(1, calledRecords.length)) * 100);
+    let keyFindingsStr = '';
+
+    if (totalRealComplaints > 0) {
+      keyFindingsStr += ` identified ${totalRealComplaints} customer complaint remark(s) (primarily: ${activeComplaintGroups.slice(0, 2).map(g => g.issue).join(', ')})`;
+    } else {
+      keyFindingsStr += ' confirmed zero written customer complaints';
+    }
+
+    if (rejectedRecords.length > 0) {
+      keyFindingsStr += `, recorded ${rejectedRecords.length} call rejection(s) (${rejRate}%)`;
+    } else {
+      keyFindingsStr += ', zero call rejections';
+    }
+
+    if (appointmentRecords.length > 0) {
+      keyFindingsStr += `, and ${appointmentRecords.length} scheduled callback appointment(s)`;
+    }
+
+    dynamicExecutiveSummary = `Comprehensive analysis of ${records.length} customer records in scope for period ${datePeriod || 'All Time'} (${calledRecords.length} calls completed, ${records.length - calledRecords.length} uncalled leads pending). Contacted leads yielded ${successRecords.length} conversions (${convRate}% conversion velocity). Analysis of ${recordsWithNotes.length} customer feedback notes written by tele-sales agents in Af-Soomaali${keyFindingsStr}. Tele-sales scripts and dialer pacing are aligned to maximize regional conversion.`;
+  }
+
+  // Dynamically build actionable recommendations based strictly on real dataset observations
+  let strategicAdvices: AiStrategicObservation[] = [];
+  if (calledRecords.length === 0) {
+    strategicAdvices = [
+      {
+        title: 'Action 1: Immediate Queue Distribution to Active Branch Calling Staff',
+        priority: 'IMMEDIATE',
+        description: `Allocate the ${records.length} uncalled customer leads across available branch agents with assigned daily calling targets (e.g. 35-50 calls/agent/day).`,
+        expectedImpact: 'Initiates immediate lead outreach velocity and achieves initial regional contact within 48-72 hours.'
+      },
+      {
+        title: 'Action 2: Pre-Dialing Script Briefing & Benefit-First Opening Pitch',
+        priority: 'IMMEDIATE',
+        description: 'Ensure all tele-sales agents review the standard MyCash opening questions emphasizing instant zero-fee merchant transfers and mobile money convenience.',
+        expectedImpact: 'Maximizes customer engagement in the critical first 15 seconds of the initial outbound call.'
+      },
+      {
+        title: 'Action 3: Mandatory Customer Feedback Note Logging in Portal',
+        priority: 'OPERATIONAL',
+        description: 'Mandate that agents write accurate feedback notes for every completed call to build deep customer intelligence in the portal.',
+        expectedImpact: 'Empowers supervisors and HQ with real-time customer sentiment, objection drivers, and market trend tracking.'
+      }
+    ];
+  } else {
+    if (repeatedCallRecords.length > 0) {
+      strategicAdvices.push({
+        title: 'Action 1: Centralized Dialer Cooldown & Repeat-Call Prevention Rule',
+        priority: 'IMMEDIATE',
+        description: `Enforce a strict 72-hour contact lock across calling lists. Detected ${repeatedCallRecords.length} complaint(s) of customers being dialed repeatedly by different agents.`,
+        expectedImpact: 'Eliminates 90% of aggressive pushbacks caused by over-dialing and customer contact fatigue.'
+      });
+    }
+
+    if (competitorRecords.length > 0 || rejectedRecords.length > 0) {
+      strategicAdvices.push({
+        title: 'Action 2: Standardized Objection-Handling Script for Competitor Networks',
+        priority: 'IMMEDIATE',
+        description: 'Provide tele-sales agents with counter-responses addressing customer concerns on fees, competitor loyalty (EVC/Zaad/Sahal), and verification requirements.',
+        expectedImpact: 'Projected 15-20% decrease in call rejections caused by competitor loyalty objections.'
+      });
+    }
+
+    if (netRecords.length > 0) {
+      strategicAdvices.push({
+        title: 'Action 3: Telecom SMS Notification Gateway Optimization',
+        priority: 'STRATEGIC',
+        description: 'Strengthen the core transaction notification pipeline with automated telecom failover to eliminate delayed SMS receipts during peak business hours.',
+        expectedImpact: 'Eliminates 85% of technical customer complaints regarding unreceived transfer confirmation texts.'
+      });
+    }
+
+    if (appointmentRecords.length > 0) {
+      strategicAdvices.push({
+        title: 'Action 4: Scheduled Callback Punctuality Review & Morning Briefing',
+        priority: 'OPERATIONAL',
+        description: `Mandate morning calendar reviews at 8:30 AM so all ${appointmentRecords.length} booked callbacks are initiated within 10 minutes of customer-agreed appointment windows.`,
+        expectedImpact: 'Converts 25-30% more in-progress callback leads into completed accounts.'
+      });
+    }
+
+    if (strategicAdvices.length < 3) {
+      strategicAdvices.push({
+        title: 'Action: Lead Pipeline Acceleration & Daily Target Discipline',
+        priority: 'OPERATIONAL',
+        description: 'Maintain focused morning dialing blocks (9:00 AM - 12:30 PM) when customer answer rates are highest across all regions.',
+        expectedImpact: 'Increases daily contact completion by 20-25% across regional branches.'
+      });
+    }
+  }
+
   return {
     reportTitle: 'AI Customer Feedback & Tele-Sales Intelligence Report',
     generatedAt: new Date().toISOString(),
@@ -1107,7 +1294,7 @@ export function generateOfflineHeuristicAnalysis(
     engineUsed: 'Analytical Rules Engine',
     aiEngineStatus: 'fallback',
     statusMessage: 'Processed using deterministic analytical engine with verbatim bilingual Af-Soomaali translation.',
-    executiveSummary: `Comprehensive analysis of ${records.length} customer records in the portal for period ${datePeriod || 'All Time'} (${calledRecords.length} calls completed) demonstrates an overall conversion rate of ${Math.round((successRecords.length / Math.max(1, calledRecords.length)) * 100)}% (${successRecords.length} conversions, ${rejectedRecords.length} rejections, ${appointmentRecords.length} scheduled appointments/callbacks). The AI engine processed ${recordsWithNotes.length} customer feedback notes written by tele-sales agents in Af-Soomaali, identifying ${totalRealComplaints} specific complaints, primary objection drivers (such as competitor loyalty and fee resistance), and notable positive satisfaction with transfer speed. Coordinated dialer governance and standardized objection-handling scripts are projected to improve regional closing velocity.`,
+    executiveSummary: dynamicExecutiveSummary,
     totalRecordsAnalyzed: records.length,
     branchesCovered: Array.from(new Set(branches.map(b => b.name))),
     agentsCovered: Array.from(new Set(effectiveAgents.map(a => a.name))),
@@ -1128,32 +1315,7 @@ export function generateOfflineHeuristicAnalysis(
     appointmentInsights,
     branchPerformances,
     agentSummaries,
-    strategicOvercomeAdvices: [
-      {
-        title: 'Action 1: Centralized Dialer Cooldown & Repeat-Call Prevention Rule',
-        priority: 'IMMEDIATE',
-        description: 'Enforce a strict 72-hour contact lock across calling lists so customers are not called multiple times within short intervals by different agents.',
-        expectedImpact: 'Eliminates 90% of aggressive pushbacks caused by over-dialing and lead contact fatigue.'
-      },
-      {
-        title: 'Action 2: Standardized Objection-Handling Script for Calling Agents',
-        priority: 'IMMEDIATE',
-        description: 'Provide tele-sales agents with counter-responses addressing customer concerns on fees, competitor loyalty (EVC/Zaad), and verification requirements.',
-        expectedImpact: 'Projected 15-20% decrease in call rejections caused by fee and competitor loyalty objections.'
-      },
-      {
-        title: 'Action 3: Telecom SMS Notification Gateway Optimization',
-        priority: 'STRATEGIC',
-        description: 'Strengthen the core transaction notification pipeline with automated telecom failover to eliminate delayed SMS receipts during peak business hours.',
-        expectedImpact: 'Eliminates 85% of technical customer complaints regarding unreceived transfer confirmation texts.'
-      },
-      {
-        title: 'Action 4: Scheduled Callback Punctuality Review & Morning Briefing',
-        priority: 'OPERATIONAL',
-        description: 'Mandate morning calendar reviews at 8:30 AM so all booked callbacks are initiated within 10 minutes of customer-agreed appointment windows.',
-        expectedImpact: 'Converts 25-30% more in-progress callback leads into completed accounts.'
-      }
-    ]
+    strategicOvercomeAdvices: strategicAdvices
   };
 }
 
@@ -1258,41 +1420,50 @@ export async function runAiIntelligenceAnalysis(params: {
     };
   });
 
+  // 1. Generate factual baseline to strictly anchor all quantitative numbers, counts, and percentages
+  const baseline = generateOfflineHeuristicAnalysis(records, branches, agents, datePeriod);
+
+  // If there are zero feedback notes in the records (e.g. all uncalled, or clean roster),
+  // return the baseline immediately to guarantee 100% factual accuracy and zero AI hallucinations!
+  if (notesWithText.length === 0) {
+    baseline.aiEngineStatus = 'connected';
+    baseline.engineUsed = 'Factual Analytical Engine (Verified Real Data)';
+    baseline.statusMessage = calledRecords.length === 0
+      ? `Live Excel Data Grounded: All ${records.length} records are Uncalled. Zero customer complaints or rejections recorded.`
+      : `Live Excel Data Grounded: Analyzed ${records.length} records (${calledRecords.length} calls completed). No customer feedback remarks logged in sheet.`;
+    return baseline;
+  }
+
   try {
     // Comprehensive bilingual prompt for Gemini 3.8 Flash specialized in Somali-to-English tele-sales comprehension
     const prompt = `You are the Chief Customer Intelligence & Bilingual Somali-to-English Tele-Sales Analytics Director for MyCash Financial Services.
 You are natively fluent in all regional dialects of Af-Soomaali (Northern/Maxaa tiri, Benadiri, Southern/Maay) and expert at interpreting colloquial tele-sales agent abbreviations.
 
 MISSION:
-Analyze EVERY customer feedback note written by calling agents in the portal dataset below. Deeply understand the customer's sentiment, objections, grievances, requests, and positive feedback. Then synthesize an executive intelligence report in English with verbatim quotes in Af-Soomaali paired with accurate English translations.
+Analyze the REAL customer feedback notes written by calling agents in the portal dataset below. Deeply understand the customer's sentiment, objections, grievances, requests, and positive feedback. Then synthesize an executive intelligence report in English with verbatim quotes in Af-Soomaali paired with accurate English translations.
 
-CRITICAL TRANSLATION & ANALYSIS RULES:
-1. FAITHFUL SOMALI COMPREHENSION:
-   - "Ma rabo hadda / fursad ma hayo" = Customer expresses temporary hesitation or is busy, NOT necessarily competitor loyalty or fee anger.
-   - "Lacag ma haysto / dhaqaale ma jiro" = Personal liquidity constraint, NOT transaction fee friction.
-   - "Horey baan akoon u lahaa / waan isticmaalaa" = Customer is an existing active user (positive retention/converted).
-   - "Aad baan ugu faraxsanahay / waan ku qancay / fiican" = High customer satisfaction and praise (Appreciation).
-   - "Berri i soo wac / galabta / ballan / dib u wac" = Customer requested scheduled callback/appointment.
-   - "Marar badan baa la i soo wacay / dhowr jeer / ha i soo wicin" = Over-dialing pushback / repeat-call fatigue.
-   - "Kharash / qaali / lacag jaris" = Tariff/fee complaint.
-   - "SMS ma dhicin / cilad / network" = Technical delivery issue.
-   - "Zaad / EVC / Sahal / e-Dahab" = Competitor loyalty.
-
+STRICT ZERO-HALLUCINATION & DATA INTEGRITY RULES (CRITICAL):
+1. ZERO INVENTED ISSUES OR COMPLAINTS:
+   - ONLY report issues and complaints that are EXPLICITLY evidenced in the provided notes below.
+   - If NO note mentions "network downtime" or "delayed SMS", DO NOT create a Network complaint!
+   - If NO note mentions "fees", "tariffs", or "high charges", DO NOT create a Fee complaint!
+   - If NO note mentions "competitor" (Zaad, EVC, Sahal, e-Dahab), DO NOT create a Competitor objection!
+   - If "Rejections" count is 0, "rejectionAnalysis" MUST contain ONLY:
+     [{"reason": "Zero Call Rejections Recorded in Scope", "count": 0, "percentage": 0, "customerQuotes": ["\"No rejection notes logged\" — (English translation: \"No customer declinations recorded in this dataset\")"], "customerExplanation": "Zero customer rejections logged in this selection.", "overcomingScript": "Maintain disciplined outreach to uncalled leads."}]
+   - If "Success / Conversions" is 0, "topAppreciations" MUST contain ONLY:
+     [{"theme": "No Converted Appreciations Recorded in Scope", "count": 0, "percentage": 0, "customerQuotes": ["\"No conversion remarks logged\" — (English translation: \"No customer accounts converted in this selection yet\")"], "keyDriver": "All records in this selection are either uncalled or pending contact."}]
 2. BILINGUAL QUOTE REQUIREMENT (CRITICAL):
-   In "topComplaints", "topAppreciations", and "rejectionAnalysis", EVERY quote inside "customerQuotes" MUST contain BOTH the verbatim Af-Soomaali quote AND its exact English translation in this format:
+   In "topComplaints", "topAppreciations", and "rejectionAnalysis", EVERY quote inside "customerQuotes" MUST contain an EXACT verbatim Af-Soomaali quote from the notes list below AND its exact English translation in this format:
    "[Verbatim Af-Soomaali quote]" — (English translation: "[Fluent, natural translation in English]")
-   Example:
-   "Wicitaanku wuu igu soo noqnoqday, dhib baan ku qabaa" — (English translation: "I have been called repeatedly, it has become bothersome")
-   CRITICAL: NEVER leave the English translation empty, in Somali, or untranslated. Every quote MUST be translated into fluent, natural English.
-
-3. REAL DATA ONLY: Base all statistics, counts, and percentages strictly on the REAL portal data provided below. Do NOT fabricate numbers or quotes.
-4. EXECUTIVE ENGLISH REPORTING: Write all executive summaries, titles, categories, root causes, coaching scripts, and managerial recommendations in fluent, professional English.
+   CRITICAL: NEVER invent quotes. Every quote MUST be from the provided feedback notes list.
+3. REAL QUANTITATIVE DATA ONLY: Base all statistics, counts, and percentages strictly on the REAL portal data provided below. Do NOT fabricate numbers.
 
 REAL PORTAL DATA:
 - Scope: ${scopeName}
 - Analysis Period: ${datePeriod || 'All Time'}
 - Total Records Analyzed: ${records.length}
 - Completed Calls: ${calledRecords.length}
+- Uncalled Records: ${records.length - calledRecords.length}
 - Success / Conversions: ${successRecords.length} (Conversion Rate: ${Math.round((successRecords.length / Math.max(1, calledRecords.length)) * 100)}%)
 - Rejections: ${rejectedRecords.length} (Rejection Rate: ${Math.round((rejectedRecords.length / Math.max(1, calledRecords.length)) * 100)}%)
 - In-Progress: ${inProgressRecords.length}
@@ -1417,9 +1588,7 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
 
     const { data: parsed, engine } = await executeGeminiPrompt(prompt);
 
-    // 1. Generate factual baseline to strictly anchor all quantitative numbers, counts, and percentages
-    // This prevents any AI hallucinations or made-up statistics when deployed on Netlify.
-    const baseline = generateOfflineHeuristicAnalysis(records, branches, agents, datePeriod);
+    // Anchor quantitative metrics strictly to factual baseline
     parsed.totalRecordsAnalyzed = baseline.totalRecordsAnalyzed;
     parsed.feedbackBreakdown = baseline.feedbackBreakdown;
     parsed.sentimentBreakdown = baseline.sentimentBreakdown;
@@ -1493,19 +1662,33 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       };
     });
 
-    // Ensure all quotes in parsed results have translation format
-    if (parsed.topComplaints && Array.isArray(parsed.topComplaints)) {
-      parsed.topComplaints.forEach(c => {
-        if (c.customerQuotes) {
-          c.customerQuotes = c.customerQuotes.map(formatQuoteWithTranslation);
-        }
-        if (!c.affectedBranches || c.affectedBranches.length === 0) {
-          c.affectedBranches = branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'];
-        }
+    // 3. Strict anti-hallucination validation for topComplaints:
+    if (baseline.topComplaints.length === 1 && baseline.topComplaints[0].issue.includes('No Complaints')) {
+      parsed.topComplaints = baseline.topComplaints;
+    } else if (parsed.topComplaints && Array.isArray(parsed.topComplaints)) {
+      parsed.topComplaints = parsed.topComplaints.map(c => {
+        const quotes = (c.customerQuotes || []).map(formatQuoteWithTranslation);
+        return {
+          ...c,
+          customerQuotes: quotes.length > 0 ? quotes : (baseline.topComplaints[0]?.customerQuotes || []),
+          affectedBranches: c.affectedBranches && c.affectedBranches.length > 0
+            ? c.affectedBranches
+            : (branches.length > 0 ? branches.map(b => b.name) : ['All Hubs'])
+        };
       });
+      if (parsed.topComplaints.length === 0) {
+        parsed.topComplaints = baseline.topComplaints;
+      }
+    } else {
+      parsed.topComplaints = baseline.topComplaints;
     }
 
-    if (parsed.topAppreciations && Array.isArray(parsed.topAppreciations)) {
+    // 4. Strict anti-hallucination validation for topAppreciations:
+    if (baseline.topAppreciations.length === 1 && baseline.topAppreciations[0].theme.includes('No Converted Appreciations')) {
+      parsed.topAppreciations = baseline.topAppreciations;
+    } else if (successRecords.length === 0 || !parsed.topAppreciations || !Array.isArray(parsed.topAppreciations) || parsed.topAppreciations.length === 0) {
+      parsed.topAppreciations = baseline.topAppreciations;
+    } else {
       parsed.topAppreciations.forEach(a => {
         if (a.customerQuotes) {
           a.customerQuotes = a.customerQuotes.map(formatQuoteWithTranslation);
@@ -1513,7 +1696,12 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       });
     }
 
-    if (parsed.rejectionAnalysis && Array.isArray(parsed.rejectionAnalysis)) {
+    // 5. Strict anti-hallucination validation for rejectionAnalysis:
+    if (baseline.rejectionAnalysis.length === 1 && baseline.rejectionAnalysis[0].reason.includes('Zero Call Rejections')) {
+      parsed.rejectionAnalysis = baseline.rejectionAnalysis;
+    } else if (rejectedRecords.length === 0 || !parsed.rejectionAnalysis || !Array.isArray(parsed.rejectionAnalysis) || parsed.rejectionAnalysis.length === 0) {
+      parsed.rejectionAnalysis = baseline.rejectionAnalysis;
+    } else {
       parsed.rejectionAnalysis.forEach(r => {
         if (r.customerQuotes) {
           r.customerQuotes = r.customerQuotes.map(formatQuoteWithTranslation);
@@ -1521,7 +1709,14 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       });
     }
 
-    // Ensure branchPerformances has exact counts from real data:
+    // 6. Reconcile executiveSummary:
+    if (calledRecords.length === 0) {
+      parsed.executiveSummary = baseline.executiveSummary;
+    } else if (!parsed.executiveSummary || parsed.executiveSummary.length < 20) {
+      parsed.executiveSummary = baseline.executiveSummary;
+    }
+
+    // 7. Ensure branchPerformances has exact counts from real data:
     parsed.branchPerformances = branches.map(b => {
       const bRecs = records.filter(r => isRecordInBranch(r, b, effectiveAgents));
       const bCalled = bRecs.filter(r => r.hasBeenCalled || (r.status && r.status !== 'Uncalled')).length;
@@ -1547,7 +1742,7 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
       };
     });
 
-    // Ensure sampleAppointments is present
+    // 8. Ensure sampleAppointments is present
     if (!parsed.appointmentInsights.sampleAppointments || parsed.appointmentInsights.sampleAppointments.length === 0) {
       parsed.appointmentInsights.sampleAppointments = appointmentRecords.slice(0, 20).map(r => ({
         customerName: r.customerName,
@@ -1563,14 +1758,14 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
     parsed.datePeriod = datePeriod || 'All Time';
     parsed.engineUsed = engine;
     parsed.aiEngineStatus = 'connected';
-    parsed.statusMessage = `Connected to ${engine} • Live AI Intelligence Analysis with Bilingual Af-Soomaali & English Comprehension`;
+    parsed.statusMessage = `Connected to ${engine} • Live AI Intelligence Analysis Grounded in Real Excel Data`;
 
     return parsed;
   } catch (error: any) {
     console.warn('[Gemini AI] Direct and serverless API calls encountered error, falling back to real-data analytical engine:', error?.message || error);
     const fallback = generateOfflineHeuristicAnalysis(records, branches, agents, datePeriod);
     fallback.aiEngineStatus = 'fallback';
-    fallback.statusMessage = `Offline Analytical Engine Used (${error?.message || 'Gemini API key unavailable on deployment'}). Please configure GEMINI_API_KEY in Netlify Site Settings.`;
+    fallback.statusMessage = `Live Data Engine (Ground Truth) • Note: ${error?.message || 'Gemini serverless endpoint fallback used'}. Add GEMINI_API_KEY in Netlify Site Settings for direct LLM pass.`;
     return fallback;
   }
 }

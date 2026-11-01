@@ -156,3 +156,37 @@ export interface CallMetrics {
   conversionRate: number; // (Success / Called) * 100
   uncalledCount: number;
 }
+
+export type WhatsAppFilterType = 'STATUS' | 'DORMANT_90' | 'BOTH' | 'CUSTOM';
+export type WhatsAppMessageStatus = 'SENT' | 'FAILED' | 'PENDING' | 'SIMULATED';
+
+export interface WhatsAppCampaign {
+  id: string;
+  title: string;
+  filterType: WhatsAppFilterType;
+  selectedStatuses: string[];
+  minDormantDays: number;
+  targetBranch: string;
+  messageTemplate: string;
+  totalRecipients: number;
+  successfulCount: number;
+  failedCount: number;
+  status: 'DRAFT' | 'SENDING' | 'COMPLETED' | 'FAILED';
+  triggeredById: string;
+  triggeredByName: string;
+  createdAt: string;
+}
+
+export interface WhatsAppMessageLog {
+  id: string;
+  campaignId: string;
+  customerId?: string;
+  customerName: string;
+  phoneNumber: string;
+  messageBody: string;
+  status: WhatsAppMessageStatus;
+  whatsappMessageId?: string;
+  errorMessage?: string;
+  sentAt: string;
+}
+

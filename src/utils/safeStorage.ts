@@ -107,6 +107,30 @@ export async function getRecordsFromIDB(): Promise<CustomerRecord[] | null> {
 }
 
 /**
+ * Asynchronously clear all customer records from IndexedDB
+ */
+export async function clearRecordsFromIDB(): Promise<boolean> {
+  try {
+    const db = await openIndexedDB();
+    if (!db) return false;
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(RECORDS_STORE, 'readwrite');
+        const store = tx.objectStore(RECORDS_STORE);
+        store.delete(RECORDS_KEY);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (err) {
+        resolve(false);
+      }
+    });
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * Attempt to free up localStorage space if quota is tight
  */
 function cleanupLocalStorageQuota(): void {

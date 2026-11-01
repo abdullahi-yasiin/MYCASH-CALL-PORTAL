@@ -50,7 +50,7 @@ export const handler = async (event: any) => {
   }
 
   try {
-    const { prompt, candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'] } = payload;
+    const { prompt, candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'] } = payload;
 
     if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
       return {

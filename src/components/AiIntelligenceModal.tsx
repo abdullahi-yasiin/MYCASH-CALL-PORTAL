@@ -30,8 +30,18 @@ import {
   Check,
   ExternalLink
 } from 'lucide-react';
-import { CustomerRecord, BranchInfo, User } from '../types';
-import { runAiIntelligenceAnalysis, generateOfflineHeuristicAnalysis, AiAnalysisResult, isRecordAssignedToAgent, isAppointmentRecord, isRecordInBranch, normalizeBranchName } from '../lib/gemini';
+import { 
+  runAiIntelligenceAnalysis, 
+  generateOfflineHeuristicAnalysis, 
+  AiAnalysisResult, 
+  isRecordAssignedToAgent, 
+  isAppointmentRecord, 
+  isRecordInBranch, 
+  normalizeBranchName,
+  formatQuoteWithTranslation,
+  translateSomaliQuoteToEnglish
+} from '../lib/gemini';
+import { User, BranchInfo, CustomerRecord } from '../types';
 import { generateAiIntelligencePdf } from '../utils/aiPdfExport';
 
 interface AiIntelligenceModalProps {
@@ -244,11 +254,13 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
           }
         }
 
+        matchedBranch = matchedBranch || 'HQ Branch';
         areaCache.set(areaLower, matchedBranch);
       }
 
-      recordBranchMap.set(recId, matchedBranch);
-      branchTotalCounts.set(matchedBranch, (branchTotalCounts.get(matchedBranch) || 0) + 1);
+      const safeBranch = matchedBranch || 'HQ Branch';
+      recordBranchMap.set(recId, safeBranch);
+      branchTotalCounts.set(safeBranch, (branchTotalCounts.get(safeBranch) || 0) + 1);
 
       // Dynamically discover agents
       const agName = (r.assignedAgentName || '').trim();
@@ -265,12 +277,12 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
               name: agName,
               email: `${cleanName.toLowerCase().replace(/\s+/g, '.')}@mycash.so`,
               role: 'TEAM_MEMBER',
-              branch: matchedBranch,
+              branch: safeBranch,
               active: true
             });
-            agentToBranch.set(agentId, matchedBranch);
-            agentToBranch.set(agLower, matchedBranch);
-            agentToBranch.set(cleanName.toLowerCase(), matchedBranch);
+            agentToBranch.set(agentId, safeBranch);
+            agentToBranch.set(agLower, safeBranch);
+            agentToBranch.set(cleanName.toLowerCase(), safeBranch);
           }
         }
       }
@@ -452,9 +464,9 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
       setAnalysisStage(0);
       return;
     }
-    const t1 = setTimeout(() => setAnalysisStage(1), 850);
-    const t2 = setTimeout(() => setAnalysisStage(2), 2000);
-    const t3 = setTimeout(() => setAnalysisStage(3), 3400);
+    const t1 = setTimeout(() => setAnalysisStage(1), 500);
+    const t2 = setTimeout(() => setAnalysisStage(2), 1200);
+    const t3 = setTimeout(() => setAnalysisStage(3), 2000);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -669,7 +681,8 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
 
   // Helper to cleanly render bilingual quotes with Somali verbatim + English translation
   const renderBilingualQuote = (rawQuote: string, idx: number, theme: 'indigo' | 'emerald' | 'amber') => {
-    const parts = rawQuote.split(/\s*—\s*\(English translation:\s*|\s*—\s*\(English:\s*/i);
+    const formatted = formatQuoteWithTranslation(rawQuote);
+    const parts = formatted.split(/\s*—\s*\(English translation:\s*|\s*—\s*\(English:\s*/i);
     const themeStyles = {
       indigo: {
         container: 'bg-indigo-50/70 border-indigo-200/70',
@@ -688,34 +701,35 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
       }
     }[theme];
 
+    let somali = '';
+    let english = '';
+
     if (parts.length >= 2) {
-      const somali = parts[0].replace(/^["']|["']$/g, '').trim();
-      const english = parts[1].replace(/\)$/, '').replace(/^["']|["']$/g, '').trim();
-      return (
-        <div key={idx} className={`p-2.5 rounded-lg border ${themeStyles.container} space-y-1.5`}>
-          <div className="flex items-start gap-1.5">
-            <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-700 shrink-0">
-              Af-Soomaali:
-            </span>
-            <span className="text-xs font-semibold italic text-slate-900 font-serif">
-              "{somali}"
-            </span>
-          </div>
-          <div className="flex items-start gap-1.5 pt-1 border-t border-slate-200/60">
-            <span className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${themeStyles.badge} shrink-0`}>
-              English:
-            </span>
-            <span className={`text-xs font-medium ${themeStyles.text}`}>
-              {english}
-            </span>
-          </div>
-        </div>
-      );
+      somali = parts[0].replace(/^["']|["']$/g, '').trim();
+      english = parts[1].replace(/\)$/, '').replace(/^["']|["']$/g, '').trim();
+    } else {
+      somali = rawQuote.replace(/^["']|["']$/g, '').trim();
+      english = translateSomaliQuoteToEnglish(somali).replace(/^["']|["']$/g, '').trim();
     }
 
     return (
-      <div key={idx} className="text-xs italic text-slate-800 font-serif bg-white/70 p-2 rounded border border-slate-200">
-        "{rawQuote.replace(/^["']|["']$/g, '')}"
+      <div key={idx} className={`p-2.5 rounded-lg border ${themeStyles.container} space-y-1.5`}>
+        <div className="flex items-start gap-1.5">
+          <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-700 shrink-0">
+            Af-Soomaali:
+          </span>
+          <span className="text-xs font-semibold italic text-slate-900 font-serif">
+            "{somali}"
+          </span>
+        </div>
+        <div className="flex items-start gap-1.5 pt-1 border-t border-slate-200/60">
+          <span className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${themeStyles.badge} shrink-0`}>
+            English:
+          </span>
+          <span className={`text-xs font-medium ${themeStyles.text}`}>
+            {english}
+          </span>
+        </div>
       </div>
     );
   };
@@ -742,9 +756,6 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                 <h2 id="ai-modal-title" className="text-xs sm:text-base font-black tracking-tight text-white truncate">
                   AI Intelligence & Feedback Analytics
                 </h2>
-                <span className="hidden sm:inline-flex px-1.5 py-0.5 rounded-sm text-[9px] sm:text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                  Powered by Gemini 3.8 AI
-                </span>
               </div>
               <p className="text-[10px] sm:text-xs text-slate-300 mt-0.5 truncate sm:whitespace-normal">
                 Analyzes customer feedback notes from Excel tables (translating Somali notes), categorizing complaints, appreciations, rejections, and coaching calling agents.
@@ -1417,11 +1428,11 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                     {/* Branded Status Header */}
                     <div className="relative z-10 space-y-2">
                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] font-semibold tracking-wide shadow-xs border border-slate-800">
-                        <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                         <span className="font-bold text-white">
-                          Gemini 3.8 Flash Engine
+                          Gemini 3.1 Flash Lite Engine
                         </span>
-                        <span className="text-slate-400 font-normal">· Real-Time Reasoning</span>
+                        <span className="text-emerald-400 font-medium">· Ultra-Fast (~2s) Intelligence</span>
                       </div>
 
                       <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
@@ -2148,7 +2159,23 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                                     <td className="p-2.5 text-slate-800 font-medium">{appt.agentName}</td>
                                     <td className="p-2.5 text-slate-600">{appt.branch}</td>
                                     <td className="p-2.5 font-semibold text-blue-700">{appt.appointmentTime}</td>
-                                    <td className="p-2.5 text-slate-700 italic max-w-xs">{appt.feedbackNote || '-'}</td>
+                                    <td className="p-2.5 text-slate-700 max-w-xs">
+                                      {appt.feedbackNote ? (() => {
+                                        const formatted = formatQuoteWithTranslation(appt.feedbackNote);
+                                        const parts = formatted.split(/\s*—\s*\(English translation:\s*|\s*—\s*\(English:\s*/i);
+                                        if (parts.length >= 2) {
+                                          const somali = parts[0].replace(/^["']|["']$/g, '').trim();
+                                          const english = parts[1].replace(/\)$/, '').replace(/^["']|["']$/g, '').trim();
+                                          return (
+                                            <div className="space-y-0.5">
+                                              <div className="text-[11px] font-medium text-slate-900 italic font-serif">"{somali}"</div>
+                                              <div className="text-[10px] text-blue-700 font-medium">↳ {english}</div>
+                                            </div>
+                                          );
+                                        }
+                                        return <span className="italic">{appt.feedbackNote}</span>;
+                                      })() : '-'}
+                                    </td>
                                     <td className="p-2.5 text-center">
                                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
                                         {appt.status}

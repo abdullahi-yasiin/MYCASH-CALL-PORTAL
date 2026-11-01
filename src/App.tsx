@@ -69,8 +69,10 @@ import { SessionInactivityModal } from './components/SessionInactivityModal';
 import { AiIntelligenceModal } from './components/AiIntelligenceModal';
 import { MarkAsCalledModal } from './components/MarkAsCalledModal';
 import { AppointmentsListTable } from './components/AppointmentsListTable';
+import { WhatsAppSmsModal } from './components/WhatsAppSmsModal';
+import { ProposalDocModal } from './components/ProposalDocModal';
 import { supabase, supabaseDb, fromDBCustomerRecord } from './lib/supabase';
-import { safeStorage, saveRecordsToIDB, getRecordsFromIDB } from './utils/safeStorage';
+import { safeStorage, saveRecordsToIDB, getRecordsFromIDB, clearRecordsFromIDB } from './utils/safeStorage';
 
 // 30 Minutes Inactivity Session Rules
 // Close/End session only IF the session is not active for 30 minutes
@@ -159,8 +161,19 @@ export default function App() {
     return INITIAL_BRANCHES;
   });
 
+  // Customer records: strictly driven by database and uploaded files only
   const [records, setRecords] = useState<CustomerRecord[]>(() => {
-    const saved = safeStorage.getItem('mycash_v3_records');
+    // Purge legacy mock customer caches once to ensure clean slate
+    const hasPurged = safeStorage.getItem('mycash_clean_portal_v1');
+    if (!hasPurged) {
+      safeStorage.removeItem('mycash_v3_records');
+      safeStorage.removeItem('mycash_v2_records');
+      safeStorage.removeItem('mycash_records');
+      clearRecordsFromIDB();
+      safeStorage.setItem('mycash_clean_portal_v1', 'true');
+      return [];
+    }
+    const saved = safeStorage.getItem('mycash_v4_records');
     const savedUsers = safeStorage.getItem('mycash_v3_users');
     let loadedUsers: User[] = INITIAL_USERS;
     if (savedUsers) {
@@ -177,9 +190,7 @@ export default function App() {
           const { valid } = sanitizeRecordsWithAgentUsers(raw, loadedUsers);
           return valid;
         }
-      } catch (e) {
-        // Fallback
-      }
+      } catch (e) {}
     }
     return [];
   });
@@ -295,6 +306,8 @@ export default function App() {
   const [targetBranchForModal, setTargetBranchForModal] = useState<BranchInfo | null>(null);
   const [isAiIntelligenceOpen, setIsAiIntelligenceOpen] = useState<boolean>(false);
   const [isEmailConfigOpen, setIsEmailConfigOpen] = useState<boolean>(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState<boolean>(false);
+  const [isProposalModalOpen, setIsProposalModalOpen] = useState<boolean>(false);
 
   // Toast notification with type support
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -506,7 +519,7 @@ export default function App() {
           console.warn('[Supabase Users Sync: Warning] Users table unreachable or not provisioned in Supabase.');
         }
 
-        // Safe Customer Records Sync with Supabase
+        // Safe Customer Records Sync with Supabase (Database is the single source of truth)
         if (conn.tables.customerRecords) {
           // Fetch existing customers from remote DB to ensure persistence
           const remoteCustomers = await supabaseDb.fetchCustomers();
@@ -517,14 +530,15 @@ export default function App() {
               isRecordsInitializedRef.current = true;
               saveRecordsToIDB(valid);
               if (valid.length <= 500) {
-                safeStorage.setItem('mycash_v3_records', JSON.stringify(valid));
+                safeStorage.setItem('mycash_v4_records', JSON.stringify(valid));
               }
             }
-          } else if (remoteCustomers !== null && remoteCustomers.length === 0) {
-            // Remote database has 0 records (e.g. after database purge/reset) - clear local cache so UI is in sync
+          } else {
+            // Remote database has 0 records (cleared/pristine) - clear all local state and caches
             setRecords([]);
             isRecordsInitializedRef.current = true;
-            saveRecordsToIDB([]);
+            clearRecordsFromIDB();
+            safeStorage.removeItem('mycash_v4_records');
             safeStorage.removeItem('mycash_v3_records');
           }
         }
@@ -607,12 +621,18 @@ export default function App() {
                   const finalList = Array.from(finalMap.values());
                   saveRecordsToIDB(finalList);
                   if (finalList.length <= 500) {
-                    safeStorage.setItem('mycash_v3_records', JSON.stringify(finalList));
+                    safeStorage.setItem('mycash_v4_records', JSON.stringify(finalList));
                   }
                   return finalList;
                 });
                 isRecordsInitializedRef.current = true;
               }
+            } else if (remoteCustomers !== null && remoteCustomers.length === 0) {
+              setRecords([]);
+              clearRecordsFromIDB();
+              safeStorage.removeItem('mycash_v4_records');
+              safeStorage.removeItem('mycash_v3_records');
+              isRecordsInitializedRef.current = true;
             }
           } catch (e) {
             console.warn('[Supabase Realtime: Notice] Error refreshing records:', e);
@@ -623,31 +643,6 @@ export default function App() {
 
     return () => {
       supabase.removeChannel(channel);
-    };
-  }, []);
-
-  // Hydrate records from IndexedDB if localStorage was empty or cleared
-  useEffect(() => {
-    let isMounted = true;
-    if (records.length === 0) {
-      getRecordsFromIDB().then(cachedRecords => {
-        if (!isMounted) return;
-        if (cachedRecords && cachedRecords.length > 0) {
-          setRecords(prev => {
-            if (prev.length === 0) {
-              const { valid } = sanitizeRecordsWithAgentUsers(cachedRecords, users);
-              return valid;
-            }
-            return prev;
-          });
-        }
-        isRecordsInitializedRef.current = true;
-      });
-    } else {
-      isRecordsInitializedRef.current = true;
-    }
-    return () => {
-      isMounted = false;
     };
   }, []);
 
@@ -669,14 +664,16 @@ export default function App() {
   }, [isAuthView]);
 
   useEffect(() => {
-    // Prevent wiping IndexedDB with [] on initial mount before IDB hydration
-    if (!isRecordsInitializedRef.current && records.length === 0) {
+    if (records.length === 0) {
+      clearRecordsFromIDB();
+      safeStorage.removeItem('mycash_v4_records');
+      safeStorage.removeItem('mycash_v3_records');
       return;
     }
     isRecordsInitializedRef.current = true;
     saveRecordsToIDB(records);
     if (records.length <= 500) {
-      safeStorage.setItem('mycash_v3_records', JSON.stringify(records));
+      safeStorage.setItem('mycash_v4_records', JSON.stringify(records));
     }
   }, [records]);
 
@@ -842,7 +839,7 @@ export default function App() {
       const combined = Array.from(recMap.values());
       saveRecordsToIDB(combined);
       if (combined.length <= 500) {
-        safeStorage.setItem('mycash_v3_records', JSON.stringify(combined));
+        safeStorage.setItem('mycash_v4_records', JSON.stringify(combined));
       }
       return combined;
     });
@@ -1362,11 +1359,17 @@ export default function App() {
         const filtered = target.type === 'all' 
           ? [] 
           : prev.filter(r => !idSet.has(r.id));
-        saveRecordsToIDB(filtered);
-        if (filtered.length <= 250) {
-          safeStorage.setItem('mycash_v3_records', JSON.stringify(filtered));
-        } else {
+        if (filtered.length === 0) {
+          clearRecordsFromIDB();
+          safeStorage.removeItem('mycash_v4_records');
           safeStorage.removeItem('mycash_v3_records');
+        } else {
+          saveRecordsToIDB(filtered);
+          if (filtered.length <= 250) {
+            safeStorage.setItem('mycash_v4_records', JSON.stringify(filtered));
+          } else {
+            safeStorage.removeItem('mycash_v4_records');
+          }
         }
         return filtered;
       });
@@ -1515,6 +1518,7 @@ export default function App() {
         }}
         onOpenProfileSettings={() => setIsProfileSettingsOpen(true)}
         onOpenAiIntelligence={(currentUser?.role === 'HQ_ADMIN' || currentUser?.role === 'SUPERVISOR') ? () => setIsAiIntelligenceOpen(true) : undefined}
+        onOpenProposalDoc={() => setIsProposalModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -1568,6 +1572,8 @@ export default function App() {
             onOpenSetBranchTarget={handleOpenSetBranchTarget}
             onOpenAiIntelligence={() => setIsAiIntelligenceOpen(true)}
             onOpenEmailConfig={() => setIsEmailConfigOpen(true)}
+            onOpenWhatsAppSms={() => setIsWhatsAppModalOpen(true)}
+            onOpenProposalDoc={() => setIsProposalModalOpen(true)}
             onUpdateRecord={handleUpdateRecord}
           />
         ) : currentUser.role === 'SUPERVISOR' ? (
@@ -1925,6 +1931,17 @@ export default function App() {
         />
       )}
 
+      {currentUser?.role === 'HQ_ADMIN' && (
+        <WhatsAppSmsModal
+          isOpen={isWhatsAppModalOpen}
+          onClose={() => setIsWhatsAppModalOpen(false)}
+          currentUser={currentUser}
+          records={records}
+          branches={branches}
+          onShowToast={(msg, type) => showToast(msg, type || 'success')}
+        />
+      )}
+
       {/* Customer Detail Drawer */}
       <CustomerDetailDrawer
         record={drawerRecord}
@@ -2024,6 +2041,12 @@ export default function App() {
           records={records}
         />
       )}
+
+      {/* Commercial & Technical Proposal Document Modal (with PDF export) */}
+      <ProposalDocModal
+        isOpen={isProposalModalOpen}
+        onClose={() => setIsProposalModalOpen(false)}
+      />
     </div>
   );
 }

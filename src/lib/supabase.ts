@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { CustomerRecord, User, ActivityLog, RoleDefinition, isRecordAssignedBySupervisor } from '../types';
+import { CustomerRecord, User, ActivityLog, RoleDefinition, isRecordAssignedBySupervisor, WhatsAppCampaign, WhatsAppMessageLog } from '../types';
 
 // Helper to sanitize Supabase URL (strips trailing slashes, accidental /rest/v1 paths, or whitespace)
 export function sanitizeSupabaseUrl(rawUrl: string | undefined): string {
@@ -38,6 +38,8 @@ export interface SupabaseSyncStatus {
     customerRecords: boolean;
     users: boolean;
     activityLogs: boolean;
+    whatsappCampaigns?: boolean;
+    whatsappMessageLogs?: boolean;
   };
 }
 
@@ -305,12 +307,84 @@ export function fromDBActivityLog(row: any): ActivityLog {
   };
 }
 
+// Convert WhatsAppCampaign to DB row
+export function toDBWhatsAppCampaign(campaign: WhatsAppCampaign) {
+  return {
+    id: campaign.id,
+    title: campaign.title,
+    filter_type: campaign.filterType,
+    selected_statuses: campaign.selectedStatuses,
+    min_dormant_days: campaign.minDormantDays,
+    target_branch: campaign.targetBranch,
+    message_template: campaign.messageTemplate,
+    total_recipients: campaign.totalRecipients,
+    successful_count: campaign.successfulCount,
+    failed_count: campaign.failedCount,
+    status: campaign.status,
+    triggered_by_id: campaign.triggeredById,
+    triggered_by_name: campaign.triggeredByName,
+    created_at: campaign.createdAt || new Date().toISOString(),
+  };
+}
+
+// Convert DB row to WhatsAppCampaign
+export function fromDBWhatsAppCampaign(row: any): WhatsAppCampaign {
+  return {
+    id: String(row.id),
+    title: row.title || 'WhatsApp Broadcast',
+    filterType: row.filter_type || 'CUSTOM',
+    selectedStatuses: Array.isArray(row.selected_statuses) ? row.selected_statuses : [],
+    minDormantDays: Number(row.min_dormant_days ?? 0),
+    targetBranch: row.target_branch || 'ALL',
+    messageTemplate: row.message_template || '',
+    totalRecipients: Number(row.total_recipients ?? 0),
+    successfulCount: Number(row.successful_count ?? 0),
+    failedCount: Number(row.failed_count ?? 0),
+    status: row.status || 'COMPLETED',
+    triggeredById: row.triggered_by_id || '',
+    triggeredByName: row.triggered_by_name || 'HQ Admin',
+    createdAt: row.created_at || new Date().toISOString(),
+  };
+}
+
+// Convert WhatsAppMessageLog to DB row
+export function toDBWhatsAppMessageLog(log: WhatsAppMessageLog) {
+  return {
+    id: log.id,
+    campaign_id: log.campaignId,
+    customer_id: log.customerId || null,
+    customer_name: log.customerName,
+    phone_number: log.phoneNumber,
+    message_body: log.messageBody,
+    status: log.status,
+    whatsapp_message_id: log.whatsappMessageId || null,
+    error_message: log.errorMessage || null,
+    sent_at: log.sentAt || new Date().toISOString(),
+  };
+}
+
+// Convert DB row to WhatsAppMessageLog
+export function fromDBWhatsAppMessageLog(row: any): WhatsAppMessageLog {
+  return {
+    id: String(row.id),
+    campaignId: row.campaign_id || '',
+    customerId: row.customer_id || undefined,
+    customerName: row.customer_name || 'Customer',
+    phoneNumber: row.phone_number || '',
+    messageBody: row.message_body || '',
+    status: row.status || 'SENT',
+    whatsappMessageId: row.whatsapp_message_id || undefined,
+    errorMessage: row.error_message || undefined,
+    sentAt: row.sent_at || new Date().toISOString(),
+  };
+}
+
 // Database query helpers with fallback & error handling
 export const supabaseDb = {
   // Test connectivity
-  async testConnection(): Promise<{ success: boolean; message: string; tables: { customerRecords: boolean; users: boolean; activityLogs: boolean } }> {
+  async testConnection(): Promise<{ success: boolean; message: string; tables: { customerRecords: boolean; users: boolean; activityLogs: boolean; whatsappCampaigns?: boolean; whatsappMessageLogs?: boolean } }> {
     try {
-      const tables = { customerRecords: false, users: false, activityLogs: false };
+      const tables = { customerRecords: false, users: false, activityLogs: false, whatsappCampaigns: false, whatsappMessageLogs: false };
       
       const { error: customerErr } = await supabase.from('customer_records').select('id').limit(1);
       tables.customerRecords = !customerErr;
@@ -320,6 +394,12 @@ export const supabaseDb = {
 
       const { error: logsErr } = await supabase.from('activity_logs').select('id').limit(1);
       tables.activityLogs = !logsErr;
+
+      const { error: waCampErr } = await supabase.from('whatsapp_campaigns').select('id').limit(1);
+      tables.whatsappCampaigns = !waCampErr;
+
+      const { error: waLogsErr } = await supabase.from('whatsapp_message_logs').select('id').limit(1);
+      tables.whatsappMessageLogs = !waLogsErr;
 
       const anyAvailable = tables.customerRecords || tables.users || tables.activityLogs;
       return {
@@ -331,7 +411,7 @@ export const supabaseDb = {
       return {
         success: false,
         message: err?.message || 'Failed to connect to Supabase',
-        tables: { customerRecords: false, users: false, activityLogs: false },
+        tables: { customerRecords: false, users: false, activityLogs: false, whatsappCampaigns: false, whatsappMessageLogs: false },
       };
     }
   },
@@ -867,23 +947,14 @@ export const supabaseDb = {
     }
   },
 
-  // Seed default data to Supabase if tables are empty
+  // Seed default data to Supabase if tables are empty (Users & System only; Customers only come from user uploads)
   async seedInitialDataIfEmpty(
-    initialRecords: CustomerRecord[],
+    _initialRecords: CustomerRecord[],
     initialUsers: User[],
-    initialLogs: ActivityLog[]
+    _initialLogs: ActivityLog[]
   ) {
     try {
-      // Check customer records
-      const { count: recordCount, error: recErr } = await supabase
-        .from('customer_records')
-        .select('*', { count: 'exact', head: true });
-
-      if (!recErr && (recordCount === null || recordCount === 0)) {
-        console.log('Seeding initial customer records to Supabase...');
-        const rows = initialRecords.map(toDBCustomerRecord);
-        await supabase.from('customer_records').upsert(rows);
-      }
+      // Customer records are never auto-seeded; they only originate from explicit user Excel uploads
 
       // Check users
       const { count: userCount, error: userErr } = await supabase
@@ -897,6 +968,112 @@ export const supabaseDb = {
       }
     } catch (err) {
       console.warn('Supabase seed notice:', err);
+    }
+  },
+
+  // WhatsApp Campaigns & Message Logs
+  async fetchWhatsAppCampaigns(): Promise<WhatsAppCampaign[]> {
+    try {
+      const { data, error } = await supabase
+        .from('whatsapp_campaigns')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) {
+        console.warn('Supabase fetchWhatsAppCampaigns notice:', error.message);
+        return [];
+      }
+      return data ? data.map(fromDBWhatsAppCampaign) : [];
+    } catch (err) {
+      console.warn('Supabase fetchWhatsAppCampaigns error:', err);
+      return [];
+    }
+  },
+
+  async insertWhatsAppCampaign(campaign: WhatsAppCampaign): Promise<boolean> {
+    try {
+      const row = toDBWhatsAppCampaign(campaign);
+      const { error } = await supabase.from('whatsapp_campaigns').insert(row);
+      if (error) {
+        console.warn('Supabase insertWhatsAppCampaign notice:', error.message);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn('Supabase insertWhatsAppCampaign error:', err);
+      return false;
+    }
+  },
+
+  async updateWhatsAppCampaign(id: string, updates: Partial<WhatsAppCampaign>): Promise<boolean> {
+    try {
+      const patch: any = { updated_at: new Date().toISOString() };
+      if (updates.successfulCount !== undefined) patch.successful_count = updates.successfulCount;
+      if (updates.failedCount !== undefined) patch.failed_count = updates.failedCount;
+      if (updates.status !== undefined) patch.status = updates.status;
+
+      const { error } = await supabase
+        .from('whatsapp_campaigns')
+        .update(patch)
+        .eq('id', id);
+
+      return !error;
+    } catch (err) {
+      console.warn('Supabase updateWhatsAppCampaign error:', err);
+      return false;
+    }
+  },
+
+  async fetchWhatsAppMessageLogs(campaignId?: string): Promise<WhatsAppMessageLog[]> {
+    try {
+      let query = supabase
+        .from('whatsapp_message_logs')
+        .select('*')
+        .order('sent_at', { ascending: false })
+        .limit(100);
+      if (campaignId) {
+        query = query.eq('campaign_id', campaignId);
+      }
+      const { data, error } = await query;
+      if (error) {
+        console.warn('Supabase fetchWhatsAppMessageLogs notice:', error.message);
+        return [];
+      }
+      return data ? data.map(fromDBWhatsAppMessageLog) : [];
+    } catch (err) {
+      console.warn('Supabase fetchWhatsAppMessageLogs error:', err);
+      return [];
+    }
+  },
+
+  async insertWhatsAppMessageLogs(logs: WhatsAppMessageLog[]): Promise<boolean> {
+    if (logs.length === 0) return true;
+    try {
+      const rows = logs.map(toDBWhatsAppMessageLog);
+      const { error } = await supabase.from('whatsapp_message_logs').insert(rows);
+      if (error) {
+        console.warn('Supabase insertWhatsAppMessageLogs notice:', error.message);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn('Supabase insertWhatsAppMessageLogs error:', err);
+      return false;
+    }
+  },
+
+  // Invoke Supabase Edge Function: send-whatsapp-sms
+  async invokeSendWhatsAppSms(payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-sms', {
+        body: payload,
+      });
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      return { success: true, data };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Edge function invocation error' };
     }
   },
 };
@@ -971,18 +1148,58 @@ CREATE TABLE IF NOT EXISTS public.activity_logs (
     details TEXT DEFAULT ''
 );
 
--- 4. Enable Row Level Security (RLS) and grant open access for application client
+-- 4. Create whatsapp_campaigns table
+CREATE TABLE IF NOT EXISTS public.whatsapp_campaigns (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    filter_type TEXT NOT NULL,
+    selected_statuses JSONB DEFAULT '[]'::jsonb,
+    min_dormant_days INTEGER DEFAULT 0,
+    target_branch TEXT DEFAULT 'ALL',
+    message_template TEXT NOT NULL,
+    total_recipients INTEGER DEFAULT 0,
+    successful_count INTEGER DEFAULT 0,
+    failed_count INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'COMPLETED',
+    triggered_by_id TEXT,
+    triggered_by_name TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. Create whatsapp_message_logs table
+CREATE TABLE IF NOT EXISTS public.whatsapp_message_logs (
+    id TEXT PRIMARY KEY,
+    campaign_id TEXT REFERENCES public.whatsapp_campaigns(id) ON DELETE CASCADE,
+    customer_id TEXT,
+    customer_name TEXT NOT NULL,
+    phone_number TEXT NOT NULL,
+    message_body TEXT NOT NULL,
+    status TEXT NOT NULL,
+    whatsapp_message_id TEXT,
+    error_message TEXT,
+    sent_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. Enable Row Level Security (RLS) and grant open access for application client
 ALTER TABLE public.customer_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.whatsapp_campaigns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.whatsapp_message_logs ENABLE ROW LEVEL SECURITY;
 
 -- Allow public read/write access with the anon key
 CREATE POLICY "Allow public all on customer_records" ON public.customer_records FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public all on users" ON public.users FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public all on activity_logs" ON public.activity_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all on whatsapp_campaigns" ON public.whatsapp_campaigns FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all on whatsapp_message_logs" ON public.whatsapp_message_logs FOR ALL USING (true) WITH CHECK (true);
 
 -- Enable Realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE public.customer_records;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.activity_logs;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.whatsapp_campaigns;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.whatsapp_message_logs;
 `;
+

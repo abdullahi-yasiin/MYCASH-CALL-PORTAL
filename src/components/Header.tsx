@@ -44,6 +44,7 @@ interface HeaderProps {
   onRefreshData?: () => void;
   onOpenProfileSettings?: () => void;
   onOpenAiIntelligence?: () => void;
+  onOpenProposalDoc?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -65,7 +66,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLoginScreen,
   onRefreshData,
   onOpenProfileSettings,
-  onOpenAiIntelligence
+  onOpenAiIntelligence,
+  onOpenProposalDoc
 }) => {
   const isHQAdmin = currentUser.role === 'HQ_ADMIN';
   const isSupervisor = currentUser.role === 'SUPERVISOR';
@@ -308,6 +310,26 @@ export const Header: React.FC<HeaderProps> = ({
                         <div>
                           <div className="font-bold text-xs text-white">Print / Save via CSS Grid</div>
                           <div className="text-[10px] text-slate-400">Native browser print dialog</div>
+                        </div>
+                      </button>
+                    )}
+
+                    {onOpenProposalDoc && (
+                      <button
+                        id="btn-header-proposal-doc"
+                        onClick={() => {
+                          setExportMenuOpen(false);
+                          onOpenProposalDoc();
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-800 text-slate-200 flex items-center gap-2.5 transition-colors cursor-pointer rounded-lg border-t border-slate-800 mt-1"
+                      >
+                        <FileText className="w-4 h-4 text-amber-400 shrink-0" />
+                        <div>
+                          <div className="font-bold text-xs text-white flex items-center gap-1.5">
+                            <span>Proposal Doc (PDF)</span>
+                            <span className="px-1.5 py-0.2 rounded text-[9px] bg-red-600/30 text-red-300 font-extrabold uppercase">6-pg</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">Timeline, features & pricing</div>
                         </div>
                       </button>
                     )}

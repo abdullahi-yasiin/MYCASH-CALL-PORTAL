@@ -39,7 +39,7 @@ export default defineConfig(() => {
                     }
                   });
 
-                  const candidateModels = payload.candidateModels || ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+                  const candidateModels = payload.candidateModels || ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
                   let text = '';
                   let usedModel = '';
                   let lastErr = null;

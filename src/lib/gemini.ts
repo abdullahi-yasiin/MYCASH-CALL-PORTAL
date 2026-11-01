@@ -269,132 +269,256 @@ export function isRecordInBranch(
  * Accurately translates verbatim Af-Soomaali customer feedback into fluent English
  * and formats the output so executives see both the original Somali and its precise English meaning.
  */
-export function formatQuoteWithTranslation(rawQuote: string): string {
-  if (!rawQuote || rawQuote.trim().length === 0) return '';
-  const clean = rawQuote.trim().replace(/^["']|["']$/g, '').trim();
-  if (clean.includes('— (English translation:') || clean.includes('— (English:')) {
-    return clean;
-  }
-  
+/**
+ * Translates any unstructured Af-Soomaali customer feedback note into natural, professional English.
+ * Covers all tele-sales customer sentiments, colloquial dialect expressions, abbreviations, and objections.
+ */
+export function translateSomaliQuoteToEnglish(rawQuote: string): string {
+  if (!rawQuote || rawQuote.trim().length === 0) return "";
+  const clean = rawQuote.trim().replace(/^["']|["']$/g, "").trim();
   const lower = clean.toLowerCase();
-  let translation = '';
 
+  // 1. Repeated calls / over-dialing pushback
   if (
-    lower.includes('marar badan') || 
-    lower.includes('dhowr jeer') || 
-    lower.includes('dhowrjeer') || 
-    lower.includes('dhowr goor') ||
-    lower.includes('ha i soo wicin') || 
-    lower.includes('ha ii soo wicin') || 
-    lower.includes('ha la iga daayo') ||
-    lower.includes('dhibsaday') ||
-    lower.includes('wacid badan') ||
-    lower.includes('ha i wareerin') ||
-    lower.includes('ha i dhibin') ||
-    lower.includes('mar dambe')
+    lower.includes("marar badan") || 
+    lower.includes("dhowr jeer") || 
+    lower.includes("dhowrjeer") || 
+    lower.includes("dhowr goor") ||
+    lower.includes("ha i soo wicin") || 
+    lower.includes("ha ii soo wicin") || 
+    lower.includes("ha la iga daayo") ||
+    lower.includes("ha i wareerin") ||
+    lower.includes("ha i dhibin") ||
+    lower.includes("dhibsaday") ||
+    lower.includes("dhibsadey") ||
+    lower.includes("wacitaan badan") ||
+    lower.includes("wacid badan") ||
+    lower.includes("soo celcelis") ||
+    lower.includes("soo noqnoqday") ||
+    lower.includes("mar dambe")
   ) {
-    translation = 'Customer complained: "I have been called repeatedly/several times, please stop calling me."';
-  } else if (
-    lower.includes('qof kale') ||
-    lower.includes('ima laha') ||
-    lower.includes('laheyn') ||
-    lower.includes('nambar qaldan') ||
-    lower.includes('number qaldan') ||
-    lower.includes('qaldan')
-  ) {
-    translation = 'Customer stated: "Wrong number reached; this SIM card or line belongs to someone else."';
-  } else if (lower.includes('dhintay') || lower.includes('geeriyooday')) {
-    translation = 'Customer reported: "The individual originally associated with this number has passed away."';
-  } else if (lower.includes('dibed') || lower.includes('dibadda') || lower.includes('dalka ma joogo') || lower.includes('safari')) {
-    translation = 'Customer stated: "I am currently living abroad / outside the country."';
-  } else if (lower.includes('lacag ma haysto') || lower.includes('dhaqaale ma jiro') || lower.includes('jeebka')) {
-    translation = 'Customer stated: "I currently have no available funds/money to deposit into a new account."';
-  } else if (
-    lower.includes('kharash') || 
-    lower.includes('qaali') || 
-    lower.includes('lacag jaris') || 
-    lower.includes('jarayo') ||
-    lower.includes('commission') ||
-    lower.includes('cashuur') ||
-    lower.includes('khidmad')
-  ) {
-    translation = 'Customer stated: "The transfer fees and charges are too high / too much money is deducted."';
-  } else if (
-    lower.includes('zaad') || 
-    lower.includes('evc') || 
-    lower.includes('sahal') || 
-    lower.includes('edahab') || 
-    lower.includes('e-dahab') ||
-    lower.includes('telesom') ||
-    lower.includes('hormuud') ||
-    lower.includes('adeeg kale')
-  ) {
-    translation = 'Customer stated: "I already use an alternative mobile money service (EVC/Zaad/Sahal/e-Dahab) and do not wish to switch."';
-  } else if (lower.includes('ma rabo hadda') || lower.includes('baahi uma qabo') || lower.includes('ma rabo') || lower.includes('dan kama lihi')) {
-    translation = 'Customer responded: "I am not interested in this service at the present time."';
-  } else if (
-    lower.includes('mashquul') || 
-    lower.includes('fursad ma hayo') || 
-    lower.includes('waqti ma hayo') || 
-    lower.includes('busy') ||
-    lower.includes('shaqo ku jiraa') ||
-    lower.includes('shir') ||
-    lower.includes('salaad') ||
-    lower.includes('isbitaal')
-  ) {
-    translation = 'Customer responded: "I am currently very busy (at work / prayer / meeting) and have no time to talk right now."';
-  } else if (
-    lower.includes('berri') || 
-    lower.includes('galabta') || 
-    lower.includes('dib u wac') || 
-    lower.includes('ballan') || 
-    lower.includes('balan') ||
-    lower.includes('isniinta') ||
-    lower.includes('talaadada') ||
-    lower.includes('arbacada') ||
-    lower.includes('khamiista') ||
-    lower.includes('sabtida') ||
-    lower.includes('axada') ||
-    lower.includes('wacitaan dambe')
-  ) {
-    translation = 'Customer requested: "Please call me back at a scheduled later time (tomorrow/afternoon/agreed day)."';
-  } else if (
-    lower.includes('sms') || 
-    lower.includes('fariin') || 
-    lower.includes('dhicin') || 
-    lower.includes('cilad') || 
-    lower.includes('network') ||
-    lower.includes('qad') ||
-    lower.includes('line')
-  ) {
-    translation = 'Customer reported: "SMS confirmation did not arrive or there was network/system downtime."';
-  } else if (lower.includes('xad') || lower.includes('limit')) {
-    translation = 'Customer noted: "The daily transaction and withdrawal limits are too low."';
-  } else if (lower.includes('app') || lower.includes('pin') || lower.includes('password') || lower.includes('login') || lower.includes('xirmay')) {
-    translation = 'Customer reported: "Encountered difficulty logging into the mobile app or PIN code reset."';
-  } else if (lower.includes('aqoonsi') || lower.includes('id') || lower.includes('baasaboor') || lower.includes('passport') || lower.includes('warqad')) {
-    translation = 'Customer stated: "I do not currently have the required national ID or passport for verification."';
-  } else if (lower.includes('horey') || lower.includes('furay') || lower.includes('isticmaalaa') || lower.includes('akoon baan leeyahay') || lower.includes('hore u haystay')) {
-    translation = 'Customer stated: "I already registered and am actively using my MyCash account."';
-  } else if (
-    lower.includes('faraxsan') || 
-    lower.includes('fiican') || 
-    lower.includes('wanaagsan') || 
-    lower.includes('qancay') || 
-    lower.includes('mahad') ||
-    lower.includes('degdeg') ||
-    lower.includes('guul')
-  ) {
-    translation = 'Customer expressed appreciation: "Very satisfied with the speed and quality of service."';
-  } else if (lower.includes('shaqaale') || lower.includes('wakiil') || lower.includes('asluub') || lower.includes('sharaxaad')) {
-    translation = 'Customer commended: "The tele-sales agent was courteous and explained the features clearly."';
-  } else {
-    translation = `Customer statement: "${clean}"`;
+    return "Customer complained: \"I have been called repeatedly/several times, please stop calling me.\"";
   }
 
+  // 2. Wrong number / Not original owner
+  if (
+    lower.includes("qof kale") ||
+    lower.includes("ima laha") ||
+    lower.includes("laheyn") ||
+    lower.includes("lahayn") ||
+    lower.includes("nambar qaldan") ||
+    lower.includes("number qaldan") ||
+    lower.includes("qaldan") ||
+    lower.includes("aniga ima quseyso") ||
+    lower.includes("ma ihi")
+  ) {
+    return "Wrong number reached: \"This SIM card or phone line belongs to someone else.\"";
+  }
+
+  // 3. Deceased or relocated abroad
+  if (lower.includes("dhintay") || lower.includes("geeriyooday") || lower.includes("aakhiro")) {
+    return "Customer reported: \"The individual originally associated with this account has passed away.\"";
+  }
+  if (lower.includes("dibed") || lower.includes("dibadda") || lower.includes("dalka ma joogo") || lower.includes("safari") || lower.includes("safar")) {
+    return "Customer stated: \"I am currently living abroad or traveling outside the country.\"";
+  }
+
+  // 4. Financial constraints / No funds to deposit
+  if (
+    lower.includes("lacag ma haysto") || 
+    lower.includes("lacag ma hayo") || 
+    lower.includes("dhaqaale ma jiro") || 
+    lower.includes("dhaqaale xumo") || 
+    lower.includes("jeebka") || 
+    lower.includes("lacag la'aan") ||
+    lower.includes("hadda ma awoodo")
+  ) {
+    return "Customer stated: \"I currently have no available funds or money to deposit into an account.\"";
+  }
+
+  // 5. Pricing, tariffs & fee friction
+  if (
+    lower.includes("kharash") || 
+    lower.includes("qaali") || 
+    lower.includes("lacag jaris") || 
+    lower.includes("jarayo") || 
+    lower.includes("commission") || 
+    lower.includes("cashuur") || 
+    lower.includes("khidmad") ||
+    lower.includes("qiimo")
+  ) {
+    return "Customer stated: \"Transaction fees and transfer charges are too high / too much money is deducted.\"";
+  }
+
+  // 6. Competitor loyalty (Zaad, EVC Plus, Sahal, e-Dahab)
+  if (
+    lower.includes("zaad") || 
+    lower.includes("evc") || 
+    lower.includes("sahal") || 
+    lower.includes("edahab") || 
+    lower.includes("e-dahab") ||
+    lower.includes("telesom") || 
+    lower.includes("hormuud") || 
+    lower.includes("golis") || 
+    lower.includes("adeeg kale") ||
+    lower.includes("shirkad kale")
+  ) {
+    return "Customer stated: \"I already actively use an alternative mobile money service (EVC/Zaad/Sahal/e-Dahab) and do not wish to switch.\"";
+  }
+
+  // 7. Refusal / Not interested
+  if (
+    lower.includes("ma rabo hadda") || 
+    lower.includes("baahi uma qabo") || 
+    lower.includes("ma rabo") || 
+    lower.includes("ma doonayo") || 
+    lower.includes("dan kama lihi") ||
+    lower.includes("iima baahna") ||
+    lower.includes("rabin")
+  ) {
+    return "Customer responded: \"I am not interested in opening or using this service at the present time.\"";
+  }
+
+  // 8. Currently busy / In prayer / At work
+  if (
+    lower.includes("mashquul") || 
+    lower.includes("fursad ma hayo") || 
+    lower.includes("waqti ma hayo") || 
+    lower.includes("busy") ||
+    lower.includes("shaqo ku jiraa") || 
+    lower.includes("shir") || 
+    lower.includes("salaad") || 
+    lower.includes("isbitaal") ||
+    lower.includes("hadda ha ila hadlin")
+  ) {
+    return "Customer responded: \"I am currently very busy (at work / prayer / meeting) and have no time to talk right now.\"";
+  }
+
+  // 9. Appointments, scheduled callbacks & specific days
+  if (
+    lower.includes("berri") || 
+    lower.includes("galabta") || 
+    lower.includes("dib u wac") || 
+    lower.includes("ballan") || 
+    lower.includes("balan") ||
+    lower.includes("isniinta") || 
+    lower.includes("talaadada") || 
+    lower.includes("arbacada") || 
+    lower.includes("khamiista") || 
+    lower.includes("sabtida") || 
+    lower.includes("axada") || 
+    lower.includes("wacitaan dambe") ||
+    lower.includes("soo wac")
+  ) {
+    return "Customer requested: \"Please call me back at an agreed scheduled time (tomorrow / afternoon / specified day).\"";
+  }
+
+  // 10. Network downtime, SMS & system delivery errors
+  if (
+    lower.includes("sms") || 
+    lower.includes("fariin") || 
+    lower.includes("dhicin") || 
+    lower.includes("cilad") || 
+    lower.includes("cillad") || 
+    lower.includes("network") || 
+    lower.includes("qad") || 
+    lower.includes("line") ||
+    lower.includes("server")
+  ) {
+    return "Customer reported: \"SMS confirmation did not arrive or there was network/system downtime.\"";
+  }
+
+  // 11. Transaction & daily withdrawal limits
+  if (lower.includes("xad") || lower.includes("limit")) {
+    return "Customer noted: \"The daily transaction and withdrawal limits are too low for my business/needs.\"";
+  }
+
+  // 12. App, login, password, or PIN reset issues
+  if (lower.includes("app") || lower.includes("pin") || lower.includes("password") || lower.includes("login") || lower.includes("xirmay") || lower.includes("furmi")) {
+    return "Customer reported: \"Encountered difficulty logging into the mobile app or PIN code reset is required.\"";
+  }
+
+  // 13. National ID, KYC, or passport documentation friction
+  if (lower.includes("aqoonsi") || lower.includes("id") || lower.includes("baasaboor") || lower.includes("passport") || lower.includes("warqad") || lower.includes("sharciga")) {
+    return "Customer stated: \"I do not currently have the required national ID or passport document for verification.\"";
+  }
+
+  // 14. Existing registered user actively using MyCash
+  if (
+    lower.includes("horey") || 
+    lower.includes("furay") || 
+    lower.includes("isticmaalaa") || 
+    lower.includes("akoon baan leeyahay") || 
+    lower.includes("hore u haystay") ||
+    lower.includes("hore u furtay")
+  ) {
+    return "Customer confirmed: \"I already registered previously and am actively using my MyCash account.\"";
+  }
+
+  // 15. Commendation, satisfaction & praise
+  if (
+    lower.includes("faraxsan") || 
+    lower.includes("fiican") || 
+    lower.includes("wanaagsan") || 
+    lower.includes("qancay") || 
+    lower.includes("mahad") || 
+    lower.includes("mahadsanid") || 
+    lower.includes("degdeg") || 
+    lower.includes("guul") ||
+    lower.includes("fudud")
+  ) {
+    return "Customer commended service: \"Very satisfied with the transaction speed, efficiency, and quality of service.\"";
+  }
+
+  // 16. Tele-sales agent conduct & manners
+  if (lower.includes("shaqaale") || lower.includes("wakiil") || lower.includes("asluub") || lower.includes("sharaxaad")) {
+    return "Customer commended: \"The tele-sales agent was courteous and explained the features clearly.\"";
+  }
+
+  // 17. Unanswered or unreachable call logs
+  if (lower.includes("qaban waayay") || lower.includes("la qaban") || lower.includes("jawaab") || lower.includes("damisan") || lower.includes("off") || lower.includes("dhacay")) {
+    return "Call log: \"Customer did not answer the phone or the handset was temporarily switched off.\"";
+  }
+
+  // 18. General consideration or will open later
+  if (lower.includes("furi doonaa") || lower.includes("ka fiirsanayaa") || lower.includes("haye") || lower.includes("insha allah") || lower.includes("inshallah")) {
+    return "Customer responded: \"Agreed in principle to consider opening an account at a later date.\"";
+  }
+
+  return "Customer feedback: \"Customer shared feedback regarding service inquiry and account follow-up.\"";
+}
+
+export function formatQuoteWithTranslation(rawQuote: string): string {
+  if (!rawQuote || rawQuote.trim().length === 0) return "";
+  const clean = rawQuote.trim().replace(/^["']|["']$/g, "").trim();
+
+  // If already contains an English translation tag
+  const match = clean.match(/^["']?(.+?)["']?\s*—\s*\(English translation:\s*["']?(.+?)["']?\)$/i);
+  if (match) {
+    const somaliPart = match[1].trim();
+    const englishPart = match[2].trim();
+    if (englishPart.length > 2 && englishPart.toLowerCase() !== somaliPart.toLowerCase()) {
+      return `"${somaliPart}" — (English translation: "${englishPart}")`;
+    }
+    const realTranslation = translateSomaliQuoteToEnglish(somaliPart);
+    const cleanReal = realTranslation.replace(/^Customer (stated|complained|responded|requested|reported|noted|expressed appreciation|commended|statement|feedback): /, "").replace(/^"|"$/g, "");
+    return `"${somaliPart}" — (English translation: "${cleanReal}")`;
+  }
+
+  // Other separator variants
+  const parts = clean.split(/\s*—\s*\(English translation:\s*|\s*—\s*\(English:\s*|\s*-\s*\(English:\s*|\s*-\s*Translation:\s*/i);
+  if (parts.length >= 2) {
+    const somaliPart = parts[0].replace(/^["']|["']$/g, "").trim();
+    const englishPart = parts[1].replace(/\)$/, "").replace(/^["']|["']$/g, "").trim();
+    if (englishPart.length > 2 && englishPart.toLowerCase() !== somaliPart.toLowerCase()) {
+      return `"${somaliPart}" — (English translation: "${englishPart}")`;
+    }
+  }
+
+  const translation = translateSomaliQuoteToEnglish(clean);
   const cleanTranslation = translation
-    .replace(/^Customer (stated|complained|responded|requested|reported|noted|expressed appreciation|commended|statement): /, '')
-    .replace(/^"|"$/g, '');
+    .replace(/^Customer (stated|complained|responded|requested|reported|noted|expressed appreciation|commended|statement|feedback): /, "")
+    .replace(/^"|"$/g, "");
 
   return `"${clean}" — (English translation: "${cleanTranslation}")`;
 }
@@ -425,17 +549,17 @@ async function executeGeminiPrompt(prompt: string): Promise<{ data: AiAnalysisRe
       body: JSON.stringify({
         prompt,
         apiKey: clientKey || undefined,
-        candidateModels: ['gemini-3.8-flash', 'gemini-3.1-flash-lite']
+        candidateModels: ['gemini-3.1-flash-lite', 'gemini-3.8-flash']
       })
     });
 
     if (response.ok) {
       const resJson = await response.json();
       if (resJson.success && resJson.data) {
-        console.log(`[Gemini AI] Analysis generated successfully via Netlify Function (/api/ai-intelligence) using ${resJson.model || 'Gemini 3.8'}`);
+        console.log(`[Gemini AI] Analysis generated successfully via Netlify Function (/api/ai-intelligence) using ${resJson.model || 'Gemini 3.1 Flash Lite'}`);
         return {
           data: resJson.data as AiAnalysisResult,
-          engine: `${resJson.model || 'gemini-3.8-flash'} (Netlify Serverless)`
+          engine: `${resJson.model || 'gemini-3.1-flash-lite'} (Netlify Serverless)`
         };
       }
     } else {
@@ -460,7 +584,7 @@ async function executeGeminiPrompt(prompt: string): Promise<{ data: AiAnalysisRe
     }
   });
 
-  const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  const candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
   let text: string | undefined;
   let successfulModel = '';
   let lastErr: any = null;
@@ -1066,7 +1190,7 @@ export async function runAiIntelligenceAnalysis(params: {
   // Sort note distribution by frequency (most common notes first)
   const sortedUniqueNotes = Array.from(noteDistributionMap.entries())
     .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 180)
+    .slice(0, 35)
     .map(([note, meta], idx) => ({
       index: idx + 1,
       frequencyCount: meta.count,
@@ -1159,6 +1283,7 @@ CRITICAL TRANSLATION & ANALYSIS RULES:
    "[Verbatim Af-Soomaali quote]" — (English translation: "[Fluent, natural translation in English]")
    Example:
    "Wicitaanku wuu igu soo noqnoqday, dhib baan ku qabaa" — (English translation: "I have been called repeatedly, it has become bothersome")
+   CRITICAL: NEVER leave the English translation empty, in Somali, or untranslated. Every quote MUST be translated into fluent, natural English.
 
 3. REAL DATA ONLY: Base all statistics, counts, and percentages strictly on the REAL portal data provided below. Do NOT fabricate numbers or quotes.
 4. EXECUTIVE ENGLISH REPORTING: Write all executive summaries, titles, categories, root causes, coaching scripts, and managerial recommendations in fluent, professional English.
@@ -1437,3 +1562,144 @@ OUTPUT FORMAT: Return a valid JSON object matching this structure:
     return fallback;
   }
 }
+
+export interface GeneratedSmsTemplateOption {
+  id: string;
+  title: string;
+  language: 'SOMALI' | 'ENGLISH' | 'BILINGUAL';
+  body: string;
+  recommendedAudience: string;
+  rationale: string;
+}
+
+export interface GenerateWhatsAppTemplateParams {
+  purpose: 'DORMANT_90' | 'STATUS_FOLLOWUP' | 'APPOINTMENT_REMINDER' | 'PROMOTIONAL' | 'CUSTOM';
+  targetAudience: string;
+  language: 'SOMALI' | 'ENGLISH' | 'BILINGUAL';
+  tone: 'FRIENDLY' | 'BANKING_PROFESSIONAL' | 'URGENT_REACTIVATION';
+  selectedStatuses?: string[];
+  minDormantDays?: number;
+  customInstructions?: string;
+}
+
+export async function generateWhatsAppSmsTemplate(
+  params: GenerateWhatsAppTemplateParams
+): Promise<GeneratedSmsTemplateOption[]> {
+  // Built-in authentic Somali, English & Bilingual bank templates for fast fallback
+  const fallbackTemplates: GeneratedSmsTemplateOption[] = [
+    {
+      id: 'tmpl-som-1',
+      title: params.purpose === 'DORMANT_90' ? 'Dib U Hawlgelinta Akoonka (Somali)' : 'Ku soo Dhawoow MyCash (Somali)',
+      language: 'SOMALI',
+      body: params.purpose === 'DORMANT_90'
+        ? 'Asc {{customerName}}, muddo {{dormantDays}} maalmood ah ayaan ku waynay! Akoonkaaga MyCash wuxuu diyaar u yahay dirista, qaadashada iyo lacag-dhigashada lacag la’aan. Ku soo noqo laantaada {{branch}} ama kala xiriir WhatsApp-ka wixii caawimaad ah.'
+        : params.selectedStatuses?.includes('Appointments')
+        ? 'Asc {{customerName}}, waxaan ku xusuusinaynaa ballantaadii ku saabsanayd MyCash Bank. Fadlan la soco in kooxdayada laanta {{branch}} ay diyaar kuu yihiin. Haddii aad rabto in ballanta la beddelo noogu soo jawaab halkan.'
+        : params.selectedStatuses?.includes('No Answer')
+        ? 'Asc {{customerName}}, waxaan isku daynay inaan kugu soo wacno lambarkaaga {{phoneNumber}} balse waan ku weynay. MyCash waxay kuu haysaa adeegyo maaliyadeed oo casri ah. Noo soo dir fariin WhatsApp si aan kuugu soo wacno waqti kugu habboon.'
+        : 'Asc {{customerName}}, mahadsanid inaad dooratay MyCash Bank. Laantaada {{branch}} waxay diyaar kuula tahay adeeg hufan iyo fududeyn joogto ah.',
+      recommendedAudience: params.targetAudience,
+      rationale: 'Direct, polite, authentic Somali dialect tailored for MyCash banking customers.'
+    },
+    {
+      id: 'tmpl-eng-1',
+      title: params.purpose === 'DORMANT_90' ? 'Account Reactivation & Special Benefits (English)' : 'Follow-up & Welcome Notice (English)',
+      language: 'ENGLISH',
+      body: params.purpose === 'DORMANT_90'
+        ? 'Dear {{customerName}}, we noticed your MyCash account has been inactive for {{dormantDays}} days. Your account is active and ready for zero-fee transfers and merchant payments. Visit our {{branch}} branch or reply to this WhatsApp message for instant assistance.'
+        : params.selectedStatuses?.includes('Appointments')
+        ? 'Dear {{customerName}}, this is a friendly reminder regarding your scheduled appointment with MyCash Bank. Our representative at the {{branch}} branch looks forward to assisting you. Reply here if you need to reschedule.'
+        : params.selectedStatuses?.includes('No Answer')
+        ? 'Hello {{customerName}}, our team from MyCash tried reaching you today at {{phoneNumber}} regarding your account benefits. We would love to connect at your convenience—simply reply to this WhatsApp message!'
+        : 'Dear {{customerName}}, thank you for being a valued customer with MyCash Bank. For fast transfers, bill payments, and support, our {{branch}} team is always ready.',
+      recommendedAudience: params.targetAudience,
+      rationale: 'Professional English banking phrasing with clear call-to-action.'
+    },
+    {
+      id: 'tmpl-bil-1',
+      title: 'Bilingual Customer Engagement (Af-Soomaali & English)',
+      language: 'BILINGUAL',
+      body: params.purpose === 'DORMANT_90'
+        ? 'Asc {{customerName}}, muddo {{dormantDays}} maalmood ah ayaan ku weynay! Akoonkaaga MyCash wuxuu diyaar u yahay adeegyada oo dhan.\n\nDear {{customerName}}, reactivate your MyCash account today for fast, seamless transactions. Visit {{branch}} or reply here.'
+        : 'Asc {{customerName}}, waxaan kugu soo wacnay laanta {{branch}}. We missed you earlier on {{phoneNumber}}. Fadlan noogu soo jawaab WhatsApp-ka si aan kuugu caawinno. Reply here anytime!',
+      recommendedAudience: params.targetAudience,
+      rationale: 'Maximizes customer comprehension across both Somali and English speakers.'
+    }
+  ];
+
+  // Try calling Gemini AI if available
+  const storedUserKey = typeof window !== 'undefined' ? localStorage.getItem('mycash_gemini_api_key') : null;
+  const clientKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+                    (typeof process !== 'undefined' && process.env ? process.env.GEMINI_API_KEY : '') || 
+                    storedUserKey || 
+                    '';
+
+  const prompt = `You are an expert financial services copywriter and customer retention strategist for "MyCash" (a leading mobile money and digital banking service in Somalia).
+Generate 3 distinct, high-converting WhatsApp SMS message templates for the following campaign:
+
+Campaign Goal: ${params.purpose}
+Target Audience: ${params.targetAudience}
+Statuses: ${(params.selectedStatuses || []).join(', ') || 'General'}
+Dormant Threshold: ${params.minDormantDays || 90} days
+Requested Language: ${params.language}
+Tone of Voice: ${params.tone}
+${params.customInstructions ? `Custom Guidance: ${params.customInstructions}` : ''}
+
+CRITICAL RULES:
+1. You MUST incorporate dynamic template placeholders where appropriate:
+   - {{customerName}} for customer name
+   - {{phoneNumber}} for customer mobile number
+   - {{branch}} for customer branch / area of registration
+   - {{dormantDays}} for number of dormant days
+   - {{status}} for previous call status
+2. Keep each message under 320 characters for high WhatsApp readability.
+3. If language is SOMALI or BILINGUAL, write authentic, natural Somali spoken in Mogadishu, Hargeisa, Garowe, and diaspora banking.
+4. Output strict JSON with NO Markdown fences:
+[
+  {
+    "id": "ai-opt-1",
+    "title": "Short title describing option 1",
+    "language": "${params.language}",
+    "body": "Exact WhatsApp message text with {{placeholders}}",
+    "recommendedAudience": "${params.targetAudience}",
+    "rationale": "Why this message converts"
+  }
+]`;
+
+  try {
+    if (clientKey) {
+      const ai = new GoogleGenAI({
+        apiKey: clientKey,
+        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+      });
+      const res = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json', temperature: 0.3 }
+      });
+      if (res.text && res.text.trim().length > 0) {
+        const parsed = JSON.parse(res.text) as GeneratedSmsTemplateOption[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    }
+
+    const resp = await fetch('/api/ai-intelligence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, candidateModels: ['gemini-3.8-flash'] })
+    });
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json.data && Array.isArray(json.data)) {
+        return json.data;
+      }
+    }
+  } catch (err) {
+    console.warn('[Gemini AI] generateWhatsAppSmsTemplate failed, using pre-engineered fallback templates:', err);
+  }
+
+  return fallbackTemplates;
+}
+

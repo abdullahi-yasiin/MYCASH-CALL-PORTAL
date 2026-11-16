@@ -34,12 +34,11 @@ import {
   runAiIntelligenceAnalysis, 
   generateOfflineHeuristicAnalysis, 
   AiAnalysisResult, 
+  BilingualQuote,
   isRecordAssignedToAgent, 
   isAppointmentRecord, 
-  isRecordInBranch, 
   normalizeBranchName,
-  formatQuoteWithTranslation,
-  translateSomaliQuoteToEnglish
+  parseBilingualQuote
 } from '../lib/gemini';
 import { User, BranchInfo, CustomerRecord } from '../types';
 import { generateAiIntelligencePdf } from '../utils/aiPdfExport';
@@ -663,10 +662,12 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
     }
   };
 
-  // Helper to cleanly render bilingual quotes with Somali verbatim + English translation
-  const renderBilingualQuote = (rawQuote: string, idx: number, theme: 'indigo' | 'emerald' | 'amber') => {
-    const formatted = formatQuoteWithTranslation(rawQuote);
-    const parts = formatted.split(/\s*—\s*\(English translation:\s*|\s*—\s*\(English:\s*/i);
+  // Helper to cleanly render customer feedback quotes (Af-Soomaali / Mixed / English) with accurate English translation
+  const renderBilingualQuote = (quoteInput: BilingualQuote | string, idx: number, theme: 'indigo' | 'emerald' | 'amber') => {
+    const parsed = typeof quoteInput === 'string'
+      ? parseBilingualQuote(quoteInput, analysisResult?.noteTranslations)
+      : quoteInput;
+
     const themeStyles = {
       indigo: {
         container: 'bg-indigo-50/70 border-indigo-200/70',
@@ -685,33 +686,47 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
       }
     }[theme];
 
-    let somali = '';
-    let english = '';
+    const originalText = (parsed.original || '').replace(/^["']|["']$/g, '').trim();
+    const englishText = (parsed.english || '').replace(/^["']|["']$/g, '').trim();
+    if (!originalText && !englishText) return null;
 
-    if (parts.length >= 2) {
-      somali = parts[0].replace(/^["']|["']$/g, '').trim();
-      english = parts[1].replace(/\)$/, '').replace(/^["']|["']$/g, '').trim();
-    } else {
-      somali = rawQuote.replace(/^["']|["']$/g, '').trim();
-      english = translateSomaliQuoteToEnglish(somali).replace(/^["']|["']$/g, '').trim();
+    const isAlreadyEnglish =
+      parsed.language === 'English' ||
+      originalText.toLowerCase() === englishText.toLowerCase();
+
+    if (isAlreadyEnglish) {
+      return (
+        <div key={idx} className={`p-2.5 rounded-lg border ${themeStyles.container}`}>
+          <div className="flex items-start gap-1.5">
+            <span className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${themeStyles.badge} shrink-0`}>
+              Customer Note:
+            </span>
+            <span className={`text-xs font-medium ${themeStyles.text}`}>
+              "{originalText || englishText}"
+            </span>
+          </div>
+        </div>
+      );
     }
+
+    const sourceLabel = parsed.language === 'Mixed' ? 'Somali / Mixed:' : 'Af-Soomaali:';
 
     return (
       <div key={idx} className={`p-2.5 rounded-lg border ${themeStyles.container} space-y-1.5`}>
         <div className="flex items-start gap-1.5">
           <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-700 shrink-0">
-            Af-Soomaali:
+            {sourceLabel}
           </span>
-          <span className="text-xs font-semibold italic text-slate-900 font-serif">
-            "{somali}"
+          <span className="text-xs font-semibold italic text-slate-900">
+            "{originalText}"
           </span>
         </div>
         <div className="flex items-start gap-1.5 pt-1 border-t border-slate-200/60">
           <span className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${themeStyles.badge} shrink-0`}>
-            English:
+            English Meaning:
           </span>
           <span className={`text-xs font-medium ${themeStyles.text}`}>
-            {english}
+            {englishText}
           </span>
         </div>
       </div>
@@ -1362,9 +1377,9 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] font-semibold tracking-wide shadow-xs border border-slate-800">
                         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                         <span className="font-bold text-white">
-                          Gemini 3.1 Flash Lite Engine
+                          Gemini 4 Flash Intelligence Engine
                         </span>
-                        <span className="text-emerald-400 font-medium">· Ultra-Fast (~2s) Intelligence</span>
+                        <span className="text-emerald-400 font-medium">· Bilingual Somali-English Reasoning</span>
                       </div>
 
                       <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
@@ -1529,7 +1544,7 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                         {analysisResult.aiEngineStatus === 'connected' ? (
                           <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1 shadow-2xs">
                             <Sparkles className="w-3 h-3 text-emerald-600 animate-pulse" />
-                            <span>{analysisResult.engineUsed || 'Gemini 3.8 Flash'} • Live AI Connected</span>
+                            <span>{analysisResult.engineUsed || 'Gemini 4 Flash'} • Live AI Connected</span>
                           </span>
                         ) : (
                           <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1" title={analysisResult.statusMessage}>
@@ -1576,9 +1591,16 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
 
                   {/* Modern Segmented Subtabs Bar */}
                   {(() => {
-                    const totalCalls = analysisResult.agentSummaries.reduce((sum, a) => sum + (a.callsMade || 0), 0);
-                    const totalConversions = analysisResult.agentSummaries.reduce((sum, a) => sum + (a.conversions || 0), 0);
-                    const totalRejections = analysisResult.agentSummaries.reduce((sum, a) => sum + (a.rejections || 0), 0);
+                    const ds = analysisResult.decisionSummary;
+                    const totalCalls = ds
+                      ? Math.max(0, analysisResult.totalRecordsAnalyzed - ds.uncalledCount)
+                      : analysisResult.agentSummaries.reduce((sum, a) => sum + (a.callsMade || 0), 0);
+                    const totalConversions = ds
+                      ? ds.yesCount
+                      : analysisResult.agentSummaries.reduce((sum, a) => sum + (a.conversions || 0), 0);
+                    const totalRejections = ds
+                      ? ds.noCount
+                      : analysisResult.agentSummaries.reduce((sum, a) => sum + (a.rejections || 0), 0);
                     const totalCallbacks = analysisResult.appointmentInsights.totalAppointments || 0;
                     const contactRate = analysisResult.totalRecordsAnalyzed > 0 
                       ? Math.min(100, Math.round((totalCalls / analysisResult.totalRecordsAnalyzed) * 100)) 
@@ -1724,17 +1746,19 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                                 </div>
                               </div>
 
-                              {/* 3. Customers Won (Conversions) */}
+                              {/* 3. Customers Won / Said Yes */}
                               <div className="bg-white border border-emerald-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between relative overflow-hidden">
                                 <div className="h-1 w-full bg-emerald-500 absolute top-0 left-0" />
                                 <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
-                                  Customers Won
+                                  Said Yes / Won
                                 </div>
                                 <div className="text-2xl font-black text-emerald-600 my-1">
-                                  {totalConversions > 0 ? totalConversions : `${analysisResult.feedbackBreakdown.appreciationsPercent}%`}
+                                  {totalConversions.toLocaleString()}
                                 </div>
                                 <div className="text-[11px] text-emerald-800 font-medium">
-                                  {conversionRate}% success rate
+                                  {ds && ds.agreedInProgressCount > 0
+                                    ? `${ds.verifiedSuccessCount} active + ${ds.agreedInProgressCount} agreed (${conversionRate}%)`
+                                    : `${conversionRate}% positive rate`}
                                 </div>
                               </div>
 
@@ -1742,13 +1766,13 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                               <div className="bg-white border border-amber-200 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between relative overflow-hidden">
                                 <div className="h-1 w-full bg-amber-500 absolute top-0 left-0" />
                                 <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
-                                  Declined Calls
+                                  Declined / Barriers
                                 </div>
                                 <div className="text-2xl font-black text-amber-600 my-1">
-                                  {totalRejections > 0 ? totalRejections : `${analysisResult.feedbackBreakdown.rejectionsPercent}%`}
+                                  {totalRejections.toLocaleString()}
                                 </div>
                                 <div className="text-[11px] text-amber-800 font-medium">
-                                  {rejectionRate}% declined / busy
+                                  {rejectionRate}% of calls had objections
                                 </div>
                               </div>
 
@@ -1900,13 +1924,15 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                                       </div>
 
                                       {/* Real Customer Quotes translated into English */}
-                                      {item.customerQuotes && item.customerQuotes.length > 0 && (
+                                      {((item.bilingualQuotes && item.bilingualQuotes.length > 0) || (item.customerQuotes && item.customerQuotes.length > 0)) && (
                                         <div className="space-y-1.5">
                                           <div className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
                                             Customer Quote & English Translation:
                                           </div>
                                           <div className="space-y-1.5">
-                                            {item.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'indigo'))}
+                                            {(item.bilingualQuotes && item.bilingualQuotes.length > 0 ? item.bilingualQuotes : item.customerQuotes).map((q, qIdx) =>
+                                              renderBilingualQuote(q, qIdx, 'indigo')
+                                            )}
                                           </div>
                                         </div>
                                       )}
@@ -1934,82 +1960,206 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                         {/* TAB 3: Decisions (Yes vs No) */}
                         {resultsSection === 'feedback' && (
                           <div className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {/* Why Customers Said Yes (Positive Feedback) */}
+                            {/* Plain-English Customer Decision Breakdown Strip */}
+                            {ds && (
                               <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
-                                <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
-                                  <ThumbsUp className="w-4 h-4" />
-                                  <h4>Why Customers Said Yes (Positive Feedback)</h4>
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <div>
+                                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                                      Customer Decision Breakdown (From Excel Call Notes)
+                                    </h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                      Includes verified active reactivations (&lt;30d dormant) and customers in &ldquo;In-progress&rdquo; who agreed to use MyCash vs those who declined or faced barriers.
+                                    </p>
+                                  </div>
+                                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-800">
+                                    {totalCalls.toLocaleString()} Called of {analysisResult.totalRecordsAnalyzed.toLocaleString()} Records
+                                  </span>
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                  <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200">
+                                    <div className="text-[10.5px] font-bold text-emerald-800 uppercase">Said Yes / Agreed</div>
+                                    <div className="text-lg font-black text-emerald-700 mt-0.5">
+                                      {ds.yesCount.toLocaleString()} <span className="text-xs font-bold">({ds.yesPercentOfDecided}% of decided)</span>
+                                    </div>
+                                    <div className="text-[10.5px] text-emerald-900 mt-0.5">
+                                      {ds.verifiedSuccessCount} verified active • {ds.agreedInProgressCount} agreed in call
+                                    </div>
+                                  </div>
+
+                                  <div className="p-3 rounded-lg bg-amber-50/70 border border-amber-200">
+                                    <div className="text-[10.5px] font-bold text-amber-800 uppercase">Declined / Barriers</div>
+                                    <div className="text-lg font-black text-amber-700 mt-0.5">
+                                      {ds.noCount.toLocaleString()} <span className="text-xs font-bold">({ds.noPercentOfDecided}% of decided)</span>
+                                    </div>
+                                    <div className="text-[10.5px] text-amber-900 mt-0.5">
+                                      Objections or dormancy blockers
+                                    </div>
+                                  </div>
+
+                                  <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200">
+                                    <div className="text-[10.5px] font-bold text-blue-800 uppercase">Callbacks Scheduled</div>
+                                    <div className="text-lg font-black text-blue-700 mt-0.5">
+                                      {ds.callbackCount.toLocaleString()}
+                                    </div>
+                                    <div className="text-[10.5px] text-blue-900 mt-0.5">
+                                      Asked agent to call back later
+                                    </div>
+                                  </div>
+
+                                  <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                                    <div className="text-[10.5px] font-bold text-slate-700 uppercase">Unreachable / Phone Off</div>
+                                    <div className="text-lg font-black text-slate-800 mt-0.5">
+                                      {ds.unreachableCount.toLocaleString()}
+                                    </div>
+                                    <div className="text-[10.5px] text-slate-500 mt-0.5">
+                                      No answer or switched off
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Why Customers Said Yes (Positive Feedback & Reactivation Agreements) */}
+                              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
+                                    <ThumbsUp className="w-4 h-4 shrink-0" />
+                                    <h4>Why Customers Said Yes (Positive Feedback)</h4>
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-emerald-100 text-emerald-800 shrink-0">
+                                    {analysisResult.topAppreciations.reduce((s, a) => s + (a.count || 0), 0)} Customers
+                                  </span>
                                 </div>
                                 <p className="text-xs text-slate-500">
-                                  What customers liked most about MyCash services and why they decided to register.
+                                  Why customers agreed to reactivate or praised MyCash, with accurate English translations of their Excel call notes.
                                 </p>
 
                                 {analysisResult.topAppreciations.length === 0 ? (
-                                  <div className="p-4 text-center bg-slate-50 rounded-lg text-xs text-slate-500">
-                                    No positive praise notes recorded in this batch.
+                                  <div className="p-5 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-1.5">
+                                    <div className="text-xs font-bold text-slate-700">No Positive or &ldquo;Said Yes&rdquo; Notes Recorded Yet</div>
+                                    <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                                      None of the customer feedback notes in this Excel selection contained positive praise or reactivation commitments.
+                                    </p>
                                   </div>
                                 ) : (
                                   <div className="space-y-3">
-                                    {analysisResult.topAppreciations.map((apprec, idx) => (
-                                      <div key={idx} className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-2">
-                                        <div className="flex items-center justify-between">
-                                          <h5 className="font-bold text-xs text-emerald-950">{apprec.theme}</h5>
-                                          <span className="text-xs font-black text-emerald-700">{apprec.percentage}%</span>
-                                        </div>
-                                        {apprec.customerQuotes && apprec.customerQuotes.length > 0 && (
-                                          <div className="space-y-1.5">
-                                            <div className="space-y-1.5">
-                                              {apprec.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'emerald'))}
+                                    {analysisResult.topAppreciations.map((apprec, idx) => {
+                                      const quotesToRender =
+                                        apprec.bilingualQuotes && apprec.bilingualQuotes.length > 0
+                                          ? apprec.bilingualQuotes
+                                          : apprec.customerQuotes || [];
+                                      return (
+                                        <div key={idx} className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-2.5">
+                                          <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                              <h5 className="font-bold text-xs text-emerald-950">{apprec.theme}</h5>
+                                              {apprec.convertingBranches && apprec.convertingBranches.length > 0 && (
+                                                <div className="flex items-center gap-1 flex-wrap mt-1">
+                                                  <span className="text-[10px] text-emerald-700 font-semibold">Branches:</span>
+                                                  {apprec.convertingBranches.slice(0, 4).map((br, bIdx) => (
+                                                    <span key={bIdx} className="text-[10px] font-medium bg-white/90 text-emerald-900 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                                      {br}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                              <div className="text-xs font-black text-emerald-700">{apprec.percentage}% of Yes</div>
+                                              <div className="text-[10.5px] text-emerald-800 font-semibold">
+                                                {apprec.count} customer{apprec.count === 1 ? '' : 's'}
+                                              </div>
                                             </div>
                                           </div>
-                                        )}
-                                        <div className="text-[11px] text-emerald-900 font-medium">
-                                          <strong>What worked:</strong> {apprec.keyDriver}
+
+                                          {quotesToRender.length > 0 && (
+                                            <div className="space-y-1.5">
+                                              {quotesToRender.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'emerald'))}
+                                            </div>
+                                          )}
+
+                                          <div className="text-[11px] text-emerald-950 bg-white/80 border border-emerald-200/80 rounded-lg p-2.5 font-medium">
+                                            <strong className="text-emerald-800">What worked:</strong> {apprec.keyDriver}
+                                          </div>
                                         </div>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>
 
-                              {/* Why Customers Declined (Common Objections) */}
+                              {/* Why Customers Declined (Common Objections & Dormancy Barriers) */}
                               <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
-                                <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
-                                  <ThumbsDown className="w-4 h-4" />
-                                  <h4>Why Customers Declined (Objections)</h4>
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
+                                    <ThumbsDown className="w-4 h-4 shrink-0" />
+                                    <h4>Why Customers Declined (Objections)</h4>
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-amber-100 text-amber-800 shrink-0">
+                                    {analysisResult.rejectionAnalysis.reduce((s, r) => s + (r.count || 0), 0)} Customers
+                                  </span>
                                 </div>
                                 <p className="text-xs text-slate-500">
-                                  Main reasons customers hesitated or declined, with helpful tips on what agents can say.
+                                  Exact reasons customers hesitated, stopped transacting, or declined, translated into clear English with agent rebuttal scripts.
                                 </p>
 
                                 {analysisResult.rejectionAnalysis.length === 0 ? (
-                                  <div className="p-4 text-center bg-slate-50 rounded-lg text-xs text-slate-500">
-                                    No rejection reasons recorded in this batch.
+                                  <div className="p-5 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-1.5">
+                                    <div className="text-xs font-bold text-slate-700">No Customer Objections Recorded</div>
+                                    <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                                      None of the customer feedback notes in this Excel selection contained decline reasons or dormancy objections.
+                                    </p>
                                   </div>
                                 ) : (
                                   <div className="space-y-3">
-                                    {analysisResult.rejectionAnalysis.map((rej, idx) => (
-                                      <div key={idx} className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-2">
-                                        <div className="flex items-center justify-between">
-                                          <h5 className="font-bold text-xs text-slate-900">{rej.reason}</h5>
-                                          <span className="text-xs font-black text-amber-600 shrink-0">{rej.percentage}% of declines</span>
-                                        </div>
-                                        <p className="text-xs text-slate-600">
-                                          <strong className="text-slate-800">Customer reaction:</strong> {rej.customerExplanation}
-                                        </p>
-                                        {rej.customerQuotes && rej.customerQuotes.length > 0 && (
-                                          <div className="space-y-1.5">
-                                            <div className="space-y-1.5">
-                                              {rej.customerQuotes.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'amber'))}
+                                    {analysisResult.rejectionAnalysis.map((rej, idx) => {
+                                      const quotesToRender =
+                                        rej.bilingualQuotes && rej.bilingualQuotes.length > 0
+                                          ? rej.bilingualQuotes
+                                          : rej.customerQuotes || [];
+                                      return (
+                                        <div key={idx} className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-2.5">
+                                          <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                              <h5 className="font-bold text-xs text-slate-900">{rej.reason}</h5>
+                                              {rej.affectedBranches && rej.affectedBranches.length > 0 && (
+                                                <div className="flex items-center gap-1 flex-wrap mt-1">
+                                                  <span className="text-[10px] text-slate-500 font-semibold">Branches:</span>
+                                                  {rej.affectedBranches.slice(0, 4).map((br, bIdx) => (
+                                                    <span key={bIdx} className="text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded">
+                                                      {br}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                              <div className="text-xs font-black text-amber-600">{rej.percentage}% of declines</div>
+                                              <div className="text-[10.5px] text-slate-500 font-semibold">
+                                                {rej.count} customer{rej.count === 1 ? '' : 's'}
+                                              </div>
                                             </div>
                                           </div>
-                                        )}
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-xs text-blue-950">
-                                          <strong className="text-blue-800">What Agent Should Say:</strong> {rej.overcomingScript}
+
+                                          <p className="text-xs text-slate-600 leading-relaxed">
+                                            <strong className="text-slate-800">Customer reaction:</strong> {rej.customerExplanation}
+                                          </p>
+
+                                          {quotesToRender.length > 0 && (
+                                            <div className="space-y-1.5">
+                                              {quotesToRender.map((q, qIdx) => renderBilingualQuote(q, qIdx, 'amber'))}
+                                            </div>
+                                          )}
+
+                                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-xs text-blue-950 leading-relaxed">
+                                            <strong className="text-blue-800">What Agent Should Say:</strong> {rej.overcomingScript}
+                                          </div>
                                         </div>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>
@@ -2087,19 +2237,17 @@ export const AiIntelligenceModal: React.FC<AiIntelligenceModalProps> = ({
                                           <td className="p-2.5 font-bold text-blue-700">{appt.appointmentTime}</td>
                                           <td className="p-2.5 text-slate-700 max-w-xs">
                                             {appt.feedbackNote ? (() => {
-                                              const formatted = formatQuoteWithTranslation(appt.feedbackNote);
-                                              const parts = formatted.split(/\s*—\s*\(English translation:\s*|\s*—\s*\(English:\s*/i);
-                                              if (parts.length >= 2) {
-                                                const somali = parts[0].replace(/^["']|["']$/g, '').trim();
-                                                const english = parts[1].replace(/\)$/, '').replace(/^["']|["']$/g, '').trim();
+                                              const parsed = appt.bilingualNote || parseBilingualQuote(appt.feedbackNote, analysisResult.noteTranslations);
+                                              const isEnglish = parsed.language === 'English' || parsed.original.toLowerCase() === parsed.english.toLowerCase();
+                                              if (!isEnglish && parsed.english) {
                                                 return (
                                                   <div className="space-y-0.5">
-                                                    <div className="text-[11px] font-medium text-slate-900 italic font-serif">"{somali}"</div>
-                                                    <div className="text-[10px] text-blue-700 font-medium">↳ {english}</div>
+                                                    <div className="text-[11px] font-medium text-slate-900 italic">"{parsed.original}"</div>
+                                                    <div className="text-[10.5px] text-blue-700 font-medium">↳ {parsed.english}</div>
                                                   </div>
                                                 );
                                               }
-                                              return <span className="italic">{appt.feedbackNote}</span>;
+                                              return <span className="text-[11px] text-slate-800">"{parsed.original || appt.feedbackNote}"</span>;
                                             })() : '-'}
                                           </td>
                                           <td className="p-2.5 text-center">

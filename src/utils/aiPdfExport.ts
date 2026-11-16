@@ -77,7 +77,7 @@ export function generateAiIntelligencePdf(
     doc.setFontSize(7.2);
     doc.setTextColor(148, 163, 184); // slate-400
     doc.text(`Generated: ${timestamp}`, pageWidth - margin, 7.5, { align: 'right' });
-    doc.text(`Engine: ${analysis.engineUsed || 'Gemini 3.8 Flash'}  |  Period: ${periodText}`, pageWidth - margin, 12.5, { align: 'right' });
+    doc.text(`Engine: ${analysis.engineUsed || 'Gemini 4 Flash'}  |  Period: ${periodText}`, pageWidth - margin, 12.5, { align: 'right' });
     doc.text(`Scope: ${cleanScope}  |  User: ${currentUser.name} (${currentUser.role})`, pageWidth - margin, 17.5, { align: 'right' });
   };
 

@@ -21,10 +21,12 @@ import {
   Type,
   Trash2,
   UserCheck,
-  X
+  X,
+  Download
 } from 'lucide-react';
 import { CustomerRecord, CallStatus, User, isRecordAssignedBySupervisor } from '../types';
 import { safeStorage } from '../utils/safeStorage';
+import { exportToExcel } from '../utils/exportEngine';
 
 export type ColumnKey = 
   | 'select' 
@@ -333,6 +335,11 @@ export const DataTable: React.FC<DataTableProps> = ({
 
   // Status Change Logic (Resilient back-and-forth transitions without zombie states)
   const handleStatusChange = (record: CustomerRecord, newStatus: CallStatus) => {
+    // Agents cannot manually set status to 'Success' (granted automatically when dormant < 30d in re-uploaded excel)
+    if (newStatus === 'Success' && currentUser.role === 'TEAM_MEMBER') {
+      return;
+    }
+
     const today = new Date().toISOString().slice(0, 10);
     const isCalled = newStatus !== 'Uncalled';
     const hasAppt = Boolean(record.appointment && record.appointment.trim() !== '');
@@ -635,12 +642,14 @@ export const DataTable: React.FC<DataTableProps> = ({
               </span>
               <span className="text-slate-400 hidden sm:inline">|</span>
               <span className="text-slate-600 hidden sm:inline text-[11px]">Batch:</span>
-              <button
-                onClick={() => handleBatchStatus('Success')}
-                className="px-1.5 sm:px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xs cursor-pointer text-[9.5px] sm:text-xs"
-              >
-                Success
-              </button>
+              {currentUser.role !== 'TEAM_MEMBER' && (
+                <button
+                  onClick={() => handleBatchStatus('Success')}
+                  className="px-1.5 sm:px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xs cursor-pointer text-[9.5px] sm:text-xs"
+                >
+                  Success
+                </button>
+              )}
               <button
                 onClick={() => handleBatchStatus('In-progress')}
                 className="px-1.5 sm:px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-white font-semibold rounded-xs cursor-pointer text-[9.5px] sm:text-xs"
@@ -676,8 +685,20 @@ export const DataTable: React.FC<DataTableProps> = ({
           )}
         </div>
 
-        {/* View Options */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5">
+        {/* View Options & Download Excel Button */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <button
+            onClick={() => exportToExcel(records, `MyCash_Records_${currentUser?.name?.replace(/\s+/g, '_') || 'Export'}`)}
+            id="btn-download-excel-agent-table"
+            type="button"
+            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold rounded-lg sm:rounded-md transition-colors cursor-pointer text-[10px] sm:text-xs shadow-2xs shrink-0"
+            title="Download all customer records in this table to Excel (.xlsx)"
+          >
+            <Download className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden xs:inline">Download Excel</span>
+            <span className="xs:hidden">Excel</span>
+          </button>
+
           <button
             onClick={() => setIsCompact(!isCompact)}
             className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded border font-medium transition-colors cursor-pointer text-[10px] sm:text-xs ${
@@ -973,23 +994,33 @@ export const DataTable: React.FC<DataTableProps> = ({
                       style={{ width: `${columnWidths.customerName}px` }}
                       className={`${pyClass} px-3 font-bold text-slate-900 overflow-hidden`}
                     >
-                      {canEditCustomerInfo ? (
-                        <input
-                          type="text"
-                          defaultValue={record.customerName}
-                          onBlur={(e) => {
-                            if (e.target.value !== record.customerName) {
-                              onUpdateRecord({ ...record, customerName: e.target.value }, 'Customer Name updated');
-                            }
-                          }}
-                          className="w-full bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-500 rounded px-1 py-0.5 font-bold text-slate-900 focus:outline-none truncate"
-                        />
-                      ) : (
-                        <div className="flex items-center gap-1 text-slate-800 truncate">
-                          <span className="truncate">{record.customerName}</span>
-                          <span title="Locked for Agents"><Lock className="w-3 h-3 text-slate-400 shrink-0" /></span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {canEditCustomerInfo ? (
+                          <input
+                            type="text"
+                            defaultValue={record.customerName}
+                            onBlur={(e) => {
+                              if (e.target.value !== record.customerName) {
+                                onUpdateRecord({ ...record, customerName: e.target.value }, 'Customer Name updated');
+                              }
+                            }}
+                            className="flex-1 min-w-0 bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-500 rounded px-1 py-0.5 font-bold text-slate-900 focus:outline-none truncate"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-1 text-slate-800 truncate min-w-0">
+                            <span className="truncate">{record.customerName}</span>
+                            <span title="Locked for Agents"><Lock className="w-3 h-3 text-slate-400 shrink-0" /></span>
+                          </div>
+                        )}
+                        {record.isNewCustomer && (
+                          <span 
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0 select-none cursor-help hover:bg-emerald-200 transition-colors"
+                            title="New Customer: Added in the latest Excel upload"
+                          >
+                            New Customer
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Phone Number */}
@@ -1097,7 +1128,9 @@ export const DataTable: React.FC<DataTableProps> = ({
                         className={`text-xs font-bold px-2 py-1 rounded border focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs transition-all w-full truncate ${getStatusBadgeStyle(record.status)}`}
                       >
                         <option value="Uncalled">Uncalled</option>
-                        <option value="Success">Success</option>
+                        <option value="Success" disabled={currentUser.role === 'TEAM_MEMBER'}>
+                          {currentUser.role === 'TEAM_MEMBER' ? 'Success (Auto on <30d)' : 'Success'}
+                        </option>
                         <option value="In-progress">In-progress</option>
                         <option value="Not Available">Not Available</option>
                         <option value="Rejected">Rejected</option>

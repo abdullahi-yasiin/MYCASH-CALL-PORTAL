@@ -68,7 +68,10 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
     const today = new Date().toISOString().slice(0, 10);
     const hasAppt = Boolean(tempAppointment && tempAppointment.trim() !== '');
     // If appointment is present and status was Uncalled, set status to In-progress
-    const finalStatus: CallStatus = (tempStatus === 'Uncalled' && hasAppt) ? 'In-progress' : tempStatus;
+    let finalStatus: CallStatus = (tempStatus === 'Uncalled' && hasAppt) ? 'In-progress' : tempStatus;
+    if (currentUser.role === 'TEAM_MEMBER' && finalStatus === 'Success' && record.status !== 'Success') {
+      finalStatus = record.status || 'In-progress';
+    }
     const isCalled = finalStatus !== 'Uncalled' || hasAppt;
 
     const updated: CustomerRecord = {
@@ -186,28 +189,46 @@ export const CustomerDetailDrawer: React.FC<CustomerDetailDrawerProps> = ({
               Call Outcome Status (Unique Call Rule)
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 sm:gap-2">
-              {(['Success', 'In-progress', 'Not Available', 'Rejected', 'Uncalled'] as CallStatus[]).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => setTempStatus(st)}
-                  className={`py-1.5 px-2 rounded-sm font-bold text-xs border text-center transition-all cursor-pointer ${
-                    tempStatus === st
-                      ? st === 'Success'
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                        : st === 'In-progress'
-                        ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
-                        : st === 'Not Available'
-                        ? 'bg-slate-700 text-white border-slate-700 shadow-xs'
-                        : st === 'Rejected'
-                        ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                        : 'bg-zinc-700 text-white border-zinc-700 shadow-xs'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {st}
-                </button>
-              ))}
+              {(['Success', 'In-progress', 'Not Available', 'Rejected', 'Uncalled'] as CallStatus[]).map((st) => {
+                const isAgent = currentUser.role === 'TEAM_MEMBER';
+                const isSuccessDisabled = isAgent && st === 'Success';
+
+                return (
+                  <button
+                    key={st}
+                    type="button"
+                    disabled={isSuccessDisabled}
+                    title={isSuccessDisabled ? "Success is automatically awarded upon Excel re-upload when dormant period is < 30 days." : undefined}
+                    onClick={() => {
+                      if (!isSuccessDisabled) {
+                        setTempStatus(st);
+                      }
+                    }}
+                    className={`py-1.5 px-2 rounded-sm font-bold text-xs border text-center transition-all ${
+                      isSuccessDisabled 
+                        ? (tempStatus === 'Success' 
+                            ? 'bg-emerald-600 text-white border-emerald-600 opacity-90 cursor-default'
+                            : 'bg-slate-100 text-slate-400 border-dashed border-slate-300 cursor-not-allowed opacity-75')
+                        : 'cursor-pointer ' + (tempStatus === st
+                            ? st === 'Success'
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                              : st === 'In-progress'
+                              ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                              : st === 'Not Available'
+                              ? 'bg-slate-700 text-white border-slate-700 shadow-xs'
+                              : st === 'Rejected'
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                              : 'bg-zinc-700 text-white border-zinc-700 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100')
+                    }`}
+                  >
+                    <span>{st}</span>
+                    {isSuccessDisabled && (
+                      <span className="block text-[8.5px] font-normal leading-tight opacity-80">(Auto &lt;30d)</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
             <p className="text-[11px] text-slate-500 italic">
               Changing status will automatically stamp call date and mark as unique call without re-incrementing total count.

@@ -29,18 +29,23 @@ export const MarkAsCalledModal: React.FC<MarkAsCalledModalProps> = ({
   onClose,
   onSave
 }) => {
+  const isAgent = currentUser.role === 'TEAM_MEMBER';
+  const defaultStatus: CallStatus = isAgent ? 'In-progress' : 'Success';
   const [feedbackNote, setFeedbackNote] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<CallStatus>('Success');
+  const [selectedStatus, setSelectedStatus] = useState<CallStatus>(defaultStatus);
   const [copied, setCopied] = useState(false);
   const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
     if (record) {
       setFeedbackNote(record.feedbackNote || '');
-      setSelectedStatus(record.status && record.status !== 'Uncalled' ? record.status : 'Success');
+      const initialStatus = record.status && record.status !== 'Uncalled' && !(isAgent && record.status === 'Success')
+        ? record.status
+        : defaultStatus;
+      setSelectedStatus(initialStatus);
       setValidationError('');
     }
-  }, [record, isOpen]);
+  }, [record, isOpen, isAgent, defaultStatus]);
 
   // Handle escape key
   useEffect(() => {
@@ -65,6 +70,10 @@ export const MarkAsCalledModal: React.FC<MarkAsCalledModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAgent && selectedStatus === 'Success') {
+      setValidationError("'Success' status is automated upon Excel re-upload when dormant period is < 30 days.");
+      return;
+    }
     const trimmedNote = feedbackNote.trim();
     if (!trimmedNote) {
       setValidationError('Customer Feedback Note is required to complete this appointment.');
@@ -170,12 +179,28 @@ export const MarkAsCalledModal: React.FC<MarkAsCalledModalProps> = ({
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {(['Success', 'In-progress', 'Not Available', 'Rejected'] as CallStatus[]).map((status) => {
+                const isSuccessDisabled = isAgent && status === 'Success';
                 const isSelected = selectedStatus === status;
                 let activeStyle = 'bg-slate-900 text-white border-slate-900';
                 if (status === 'Success') activeStyle = 'bg-emerald-600 text-white border-emerald-600 shadow-xs shadow-emerald-500/20';
                 if (status === 'In-progress') activeStyle = 'bg-amber-600 text-white border-amber-600 shadow-xs shadow-amber-500/20';
                 if (status === 'Rejected') activeStyle = 'bg-rose-600 text-white border-rose-600 shadow-xs shadow-rose-500/20';
                 if (status === 'Not Available') activeStyle = 'bg-slate-700 text-white border-slate-700';
+
+                if (isSuccessDisabled) {
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      disabled
+                      title="Success status is automated upon Excel re-upload when dormant period is < 30 days"
+                      className="px-2 py-1.5 rounded-xl text-[10.5px] font-bold border border-dashed border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed text-center opacity-70"
+                    >
+                      <span>Success</span>
+                      <span className="block text-[8.5px] font-normal leading-none mt-0.5 text-slate-400">(Auto &lt;30d)</span>
+                    </button>
+                  );
+                }
 
                 return (
                   <button

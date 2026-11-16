@@ -9,6 +9,11 @@ export function exportToExcel(records: CustomerRecord[], fileNamePrefix: string 
     'Customer Name': r.customerName,
     'Phone Number': r.phoneNumber,
     'Area of Reg.': r.areaOfReg,
+    'Reg. Date': r.regDate || '-',
+    'Total Transactions': r.totalTransactions ?? 0,
+    'First Trans. Date': r.firstTransDate || '-',
+    'Last Trans. Date': r.lastTransDate || '-',
+    'Dormant Days': r.dormantDays ?? 0,
     'Call Date': r.callDate || '-',
     'Status': r.status,
     'Appointment': r.appointment || '-',
@@ -24,7 +29,12 @@ export function exportToExcel(records: CustomerRecord[], fileNamePrefix: string 
   worksheet['!cols'] = [
     { wch: 24 }, // Customer Name
     { wch: 18 }, // Phone Number
-    { wch: 22 }, // Area
+    { wch: 20 }, // Area of Reg.
+    { wch: 15 }, // Reg. Date
+    { wch: 18 }, // Total Transactions
+    { wch: 18 }, // First Trans. Date
+    { wch: 18 }, // Last Trans. Date
+    { wch: 14 }, // Dormant Days
     { wch: 14 }, // Call Date
     { wch: 14 }, // Status
     { wch: 20 }, // Appointment

@@ -169,10 +169,6 @@ export const Header: React.FC<HeaderProps> = ({
                 <h1 className="font-black text-xs sm:text-sm md:text-base tracking-tight text-white leading-none">
                   MYCASH
                 </h1>
-                <span className="hidden lg:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[8.5px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 leading-none">
-                  <span className="w-1 h-1 rounded-full bg-emerald-400"></span>
-                  Secure
-                </span>
               </div>
               <span className="text-slate-400 font-bold tracking-[0.18em] text-[7.5px] sm:text-[8.5px] uppercase mt-0.5 leading-tight">
                 CALLING PORTAL
@@ -183,13 +179,12 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Center Search Input */}
           <div className="hidden xl:flex items-center flex-1 max-w-xs mx-3">
             <div className="relative w-full">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder="Quick search customer name or phone..."
-                className="w-full pl-8 pr-7 py-1 bg-slate-850 bg-slate-900/80 border border-slate-700/80 rounded-lg text-[11px] text-white placeholder-slate-400 focus:outline-none focus:bg-slate-900 focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all font-medium"
+                className="w-full pl-3 pr-7 py-1 bg-slate-850 bg-slate-900/80 border border-slate-700/80 rounded-lg text-[11px] text-white placeholder-slate-400 focus:outline-none focus:bg-slate-900 focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all font-medium"
               />
               {searchQuery && (
                 <button

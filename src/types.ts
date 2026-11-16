@@ -79,6 +79,13 @@ export interface CustomerRecord {
   reassignedAt?: string;
   createdAt: string;
   updatedAt: string;
+  isNewCustomer?: boolean; // Hover label 'New Customer' for freshly uploaded records until next upload
+}
+
+export function normalizePhoneForMatching(phone?: string | null): string {
+  if (!phone) return '';
+  const digits = String(phone).replace(/\D/g, '');
+  return digits.length >= 7 ? digits.slice(-9) : digits;
 }
 
 export function isRecordAssignedBySupervisor(r: CustomerRecord | undefined | null): boolean {

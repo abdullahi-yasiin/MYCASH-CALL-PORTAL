@@ -23,7 +23,8 @@ import {
   ChevronDown,
   X,
   UserCheck,
-  Check
+  Check,
+  RotateCcw
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -47,7 +48,7 @@ interface SupervisorDashboardProps {
   activityLogs: ActivityLog[];
   onInspectAgentExcel: (agent: User) => void;
   onAddTeamMember: () => void;
-  onOpenBulkImport: (targetAgentId?: string) => void;
+  onOpenBulkImport: (targetAgentId?: string, isReupload?: boolean) => void;
   onRefreshData?: () => void;
   onUpdateRecord?: (updatedRecord: CustomerRecord, changeDetails: string) => void;
   onOpenAiIntelligence?: () => void;
@@ -763,21 +764,38 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           </div>
                         </td>
 
-                        <td className="py-1 sm:py-2 px-1.5 sm:px-2 text-center">
-                          <button
-                            type="button"
-                            id={`btn-inspect-agent-excel-${s.agent.id}`}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onInspectAgentExcel(s.agent);
-                            }}
-                            className="px-1 py-0.5 sm:px-2 sm:py-1 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-xs sm:rounded border border-slate-200 hover:border-blue-300 flex items-center gap-0.5 sm:gap-1 mx-auto text-[8.5px] sm:text-[10px] font-medium transition-colors cursor-pointer"
-                            title={`Inspect ${s.agentName}'s raw Excel records in audit drawer`}
-                          >
-                            <Eye className="w-2.5 h-2.5 sm:w-3 sm:h-3 pointer-events-none" />
-                            <span className="pointer-events-none">Inspect</span>
-                          </button>
+                        <td className="py-1 sm:py-2 px-1.5 sm:px-2 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              id={`btn-inspect-agent-excel-${s.agent.id}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onInspectAgentExcel(s.agent);
+                              }}
+                              className="px-1 py-0.5 sm:px-2 sm:py-1 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-xs sm:rounded border border-slate-200 hover:border-blue-300 flex items-center gap-0.5 sm:gap-1 text-[8.5px] sm:text-[10px] font-medium transition-colors cursor-pointer"
+                              title={`Inspect ${s.agentName}'s raw Excel records in audit drawer`}
+                            >
+                              <Eye className="w-2.5 h-2.5 sm:w-3 sm:h-3 pointer-events-none" />
+                              <span className="pointer-events-none">Inspect</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              id={`btn-reupload-agent-excel-sup-${s.agent.id}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onOpenBulkImport(s.agent.id, true);
+                              }}
+                              className="px-1 py-0.5 sm:px-2 sm:py-1 text-emerald-700 hover:text-white bg-emerald-50 hover:bg-emerald-600 rounded-xs sm:rounded border border-emerald-200 hover:border-emerald-600 flex items-center gap-0.5 sm:gap-1 text-[8.5px] sm:text-[10px] font-medium transition-colors cursor-pointer"
+                              title={`Re-upload Excel for ${s.agentName} (Data Continuation)`}
+                            >
+                              <RotateCcw className="w-2.5 h-2.5 sm:w-3 sm:h-3 pointer-events-none" />
+                              <span className="pointer-events-none">Re-upload</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))

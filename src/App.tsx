@@ -294,6 +294,7 @@ export default function App() {
   const [isPrdModalOpen, setIsPrdModalOpen] = useState<boolean>(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
   const [importTargetAgentId, setImportTargetAgentId] = useState<string>('');
+  const [isReuploadImport, setIsReuploadImport] = useState<boolean>(false);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState<boolean>(false);
   const [isBulkUserImportOpen, setIsBulkUserImportOpen] = useState<boolean>(false);
   const [userManagementTab, setUserManagementTab] = useState<'users' | 'roles'>('users');
@@ -771,6 +772,17 @@ export default function App() {
   // Record update handler
   const handleUpdateRecord = (updatedRecord: CustomerRecord, changeDetails: string) => {
     if (!currentUser) return;
+
+    // Guard: Agents (TEAM_MEMBER) cannot manually set status to 'Success'
+    // Success is awarded automatically when a called customer's dormant period is < 30 days upon Excel re-upload
+    if (currentUser.role === 'TEAM_MEMBER' && updatedRecord.status === 'Success') {
+      const existing = records.find(r => r.id === updatedRecord.id);
+      if (existing && existing.status !== 'Success') {
+        showToast(`'Success' status is awarded automatically upon Excel re-upload when dormant period is < 30 days.`);
+        return;
+      }
+    }
+
     setRecords(prev => {
       const nextList = prev.map(r => (r.id === updatedRecord.id ? updatedRecord : r));
       saveRecordsToIDB(nextList);
@@ -807,34 +819,42 @@ export default function App() {
   // Mark as Called handler: saves customer feedback note and moves appointment to Previous Appointments
   const handleSaveMarkAsCalled = (record: CustomerRecord, feedbackNote: string, status: CallStatus) => {
     if (!currentUser) return;
+    const effectiveStatus: CallStatus = (currentUser.role === 'TEAM_MEMBER' && status === 'Success')
+      ? 'In-progress'
+      : status;
+
     const updated: CustomerRecord = {
       ...record,
       appointmentCompleted: true,
       appointmentCompletedAt: new Date().toISOString(),
       appointmentCompletedBy: currentUser.name,
       feedbackNote,
-      status,
+      status: effectiveStatus,
       hasBeenCalled: true,
       callDate: new Date().toISOString().split('T')[0],
       callCount: Math.max(1, (record.callCount || 0) + 1),
       updatedAt: new Date().toISOString()
     };
-    handleUpdateRecord(updated, `Marked appointment as called for ${record.customerName} (${status})`);
+    handleUpdateRecord(updated, `Marked appointment as called for ${record.customerName} (${effectiveStatus})`);
     showToast(`Appointment for ${record.customerName} marked as called and recorded in Previous Appointments.`);
   };
 
-  // Bulk import commit handler
-  const handleCommitImport = (newRecords: CustomerRecord[], batchName: string) => {
+  // Bulk import commit handler with Data Continuation intelligence
+  const handleCommitImport = (
+    newRecords: CustomerRecord[], 
+    batchName: string,
+    continuationSummary?: { updatedCount: number; newCount: number; autoSuccessCount?: number }
+  ) => {
     if (!currentUser) return;
     setRecords(prev => {
       const recMap = new Map<string, CustomerRecord>();
-      for (const r of newRecords) {
+      // First populate all existing records
+      for (const r of prev) {
         if (r && r.id) recMap.set(r.id, r);
       }
-      for (const r of prev) {
-        if (r && r.id && !recMap.has(r.id)) {
-          recMap.set(r.id, r);
-        }
+      // Overlay the updated records and append new records from import
+      for (const r of newRecords) {
+        if (r && r.id) recMap.set(r.id, r);
       }
       const combined = Array.from(recMap.values());
       saveRecordsToIDB(combined);
@@ -843,6 +863,12 @@ export default function App() {
       }
       return combined;
     });
+
+    const isContinuation = continuationSummary && (continuationSummary.updatedCount > 0 || continuationSummary.newCount > 0);
+    const autoSuccessPart = continuationSummary?.autoSuccessCount ? ` | ${continuationSummary.autoSuccessCount} converted to Success (<30d dormant)` : '';
+    const detailsText = isContinuation
+      ? `[Data Continuation] Synced ${continuationSummary.updatedCount} existing customer metrics (transactions, dates, dormant days) and added ${continuationSummary.newCount} new customers.${autoSuccessPart}`
+      : `Imported ${newRecords.length} records into system roster.`;
 
     const importLog: ActivityLog = {
       id: `log-${Date.now()}`,
@@ -853,11 +879,19 @@ export default function App() {
       recordId: `batch-${Date.now()}`,
       customerName: batchName,
       action: 'EXCEL_IMPORTED',
-      details: `Imported ${newRecords.length} records into system roster.`
+      details: detailsText
     };
 
     setActivityLogs(prev => [importLog, ...prev]);
-    showToast(`Successfully imported ${newRecords.length} customer records.`);
+
+    if (isContinuation) {
+      const autoMsg = (continuationSummary.autoSuccessCount && continuationSummary.autoSuccessCount > 0)
+        ? ` (${continuationSummary.autoSuccessCount} auto-promoted to Success on <30d dormant)`
+        : '';
+      showToast(`Data Continuation complete: ${continuationSummary.updatedCount} existing customers updated, ${continuationSummary.newCount} new customers added${autoMsg}.`);
+    } else {
+      showToast(`Successfully imported ${newRecords.length} customer records.`);
+    }
 
     // Sync imported batch with Supabase Cloud DB
     supabaseDb.batchUpsertCustomers(newRecords);
@@ -1561,8 +1595,9 @@ export default function App() {
             currentUser={currentUser}
             onInspectAgentExcel={(agent) => setInspectedAgent(agent)}
             onOpenPrdModal={() => setIsPrdModalOpen(true)}
-            onOpenBulkImport={(targetAgentId?: string) => {
+            onOpenBulkImport={(targetAgentId?: string, isReupload?: boolean) => {
               setImportTargetAgentId(targetAgentId || '');
+              setIsReuploadImport(Boolean(isReupload));
               setIsBulkImportOpen(true);
             }}
             onOpenBulkUserImport={() => setIsBulkUserImportOpen(true)}
@@ -1593,8 +1628,9 @@ export default function App() {
               setUserManagementShowAddForm(true);
               setIsUserManagementOpen(true);
             }}
-            onOpenBulkImport={(targetAgentId?: string) => {
+            onOpenBulkImport={(targetAgentId?: string, isReupload?: boolean) => {
               setImportTargetAgentId(targetAgentId || '');
+              setIsReuploadImport(Boolean(isReupload));
               setIsBulkImportOpen(true);
             }}
             onRefreshData={() => {
@@ -1885,10 +1921,13 @@ export default function App() {
         onClose={() => {
           setIsBulkImportOpen(false);
           setImportTargetAgentId('');
+          setIsReuploadImport(false);
         }}
         currentUser={currentUser}
         teamMembers={teamMembersList}
         preselectedAgentId={importTargetAgentId}
+        isReupload={isReuploadImport}
+        existingRecords={records}
         onCommitImport={handleCommitImport}
       />
 

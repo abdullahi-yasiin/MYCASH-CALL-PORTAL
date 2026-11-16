@@ -62,7 +62,7 @@ interface AdminDashboardProps {
   currentUser: User;
   onInspectAgentExcel: (agent: User) => void;
   onOpenPrdModal: () => void;
-  onOpenBulkImport: (targetAgentId?: string) => void;
+  onOpenBulkImport: (targetAgentId?: string, isReupload?: boolean) => void;
   onOpenBulkUserImport?: () => void;
   onOpenUserManagement?: () => void;
   onOpenDeleteExcel?: (target?: DeleteExcelTarget) => void;
@@ -73,6 +73,7 @@ interface AdminDashboardProps {
   onOpenWhatsAppSms?: () => void;
   onOpenProposalDoc?: () => void;
   onUpdateRecord?: (updatedRecord: CustomerRecord, changeDetails: string) => void;
+  initialSection?: 'teamExcels' | 'regionalBranches' | 'supervisors' | 'appointments' | 'activityLogs';
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -94,10 +95,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenEmailConfig,
   onOpenWhatsAppSms,
   onOpenProposalDoc,
-  onUpdateRecord
+  onUpdateRecord,
+  initialSection = 'teamExcels'
 }) => {
   // Active view tab inside the auto-summary dashboard
-  const [activeSection, setActiveSection] = useState<'teamExcels' | 'regionalBranches' | 'supervisors' | 'appointments' | 'activityLogs'>('teamExcels');
+  const [activeSection, setActiveSection] = useState<'teamExcels' | 'regionalBranches' | 'supervisors' | 'appointments' | 'activityLogs'>(initialSection);
+
+  useEffect(() => {
+    if (initialSection) {
+      setActiveSection(initialSection);
+    }
+  }, [initialSection]);
   
   // Subtab for Section 4: Scheduled Appointments
   const [appSubTab, setAppSubTab] = useState<'upcoming' | 'previous'>('upcoming');
@@ -1564,6 +1572,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             >
                               <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5 pointer-events-none shrink-0" />
                               <span className="pointer-events-none whitespace-nowrap">Inspect</span>
+                            </button>
+
+                            {/* Re-upload button for Data Continuation */}
+                            <button
+                              type="button"
+                              id={`btn-reupload-agent-excel-${s.agent.id}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onOpenBulkImport(s.agent.id, true);
+                              }}
+                              className="shrink-0 inline-flex flex-nowrap items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-md sm:rounded-lg transition-all border border-emerald-200 hover:border-emerald-600 font-semibold text-[9px] sm:text-xs shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
+                              title={`Re-upload Excel for ${s.agentName} (Data Continuation: updates transactions, dates, dormant days & adds new customers without resetting call history or notes)`}
+                            >
+                              <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5 pointer-events-none shrink-0" />
+                              <span className="pointer-events-none whitespace-nowrap">Re-upload</span>
                             </button>
 
                             {currentUser.role === 'HQ_ADMIN' && onOpenSetAgentTarget && (

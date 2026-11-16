@@ -60,13 +60,14 @@ export function toDBCustomerRecord(record: CustomerRecord) {
   }
 
   // Also embed transaction metrics metadata tag if values are provided so they survive any schema state
-  if (record.regDate || record.totalTransactions !== undefined || record.firstTransDate || record.lastTransDate || record.dormantDays !== undefined) {
+  if (record.regDate || record.totalTransactions !== undefined || record.firstTransDate || record.lastTransDate || record.dormantDays !== undefined || record.isNewCustomer !== undefined) {
     const transMeta = {
       regDate: record.regDate || '',
       totalTrans: record.totalTransactions ?? 0,
       firstTransDate: record.firstTransDate || '',
       lastTransDate: record.lastTransDate || '',
-      dormantDays: record.dormantDays ?? 0
+      dormantDays: record.dormantDays ?? 0,
+      isNew: record.isNewCustomer ? true : false
     };
     finalSupervisorNote = finalSupervisorNote.replace(/^\[TRANS_METRICS:[^\]]+\]\s*/, '').trim();
     finalSupervisorNote = `[TRANS_METRICS:${JSON.stringify(transMeta)}] ${finalSupervisorNote}`.trim();
@@ -134,6 +135,8 @@ export function fromDBCustomerRecord(row: any): CustomerRecord {
     ? Number(row.dormant_days) 
     : (row.dormantDays !== undefined ? Number(row.dormantDays) : 0);
 
+  let isNewCustomer = Boolean(row.is_new_customer ?? row.isNewCustomer);
+
   // Extract embedded [TRANS_METRICS:...] tag from supervisorNote if present
   if (typeof supervisorNote === 'string') {
     const transMatch = supervisorNote.match(/\[TRANS_METRICS:([^\]]+)\]/);
@@ -145,6 +148,7 @@ export function fromDBCustomerRecord(row: any): CustomerRecord {
         if (!firstTransDate && parsed.firstTransDate) firstTransDate = parsed.firstTransDate;
         if (!lastTransDate && parsed.lastTransDate) lastTransDate = parsed.lastTransDate;
         if (!dormantDays && parsed.dormantDays !== undefined) dormantDays = Number(parsed.dormantDays);
+        if (parsed.isNew !== undefined) isNewCustomer = Boolean(parsed.isNew);
         supervisorNote = supervisorNote.replace(transMatch[0], '').trim();
       } catch (e) {
         // ignore parse error
@@ -190,6 +194,7 @@ export function fromDBCustomerRecord(row: any): CustomerRecord {
     reassignedFromAgentId: reassignedFromAgentId,
     reassignedFromAgentName: reassignedFromAgentName,
     reassignedAt: reassignedAt,
+    isNewCustomer: isNewCustomer || undefined,
     updatedAt: row.updated_at || row.updatedAt || '',
     createdAt: row.created_at || row.createdAt || '',
   };

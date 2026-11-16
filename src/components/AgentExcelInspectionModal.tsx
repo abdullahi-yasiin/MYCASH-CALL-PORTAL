@@ -288,7 +288,7 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
         }
       }}
     >
-      <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-6xl w-full max-h-[96vh] sm:max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-[96vw] 2xl:max-w-7xl w-full max-h-[96vh] sm:max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
         
         {/* Header */}
         <div className="bg-slate-900 text-white px-3 sm:px-5 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-800 shrink-0">
@@ -425,56 +425,78 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
             </div>
           </div>
 
-          <div className="flex items-center justify-between w-full sm:w-auto gap-2">
-            <div className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2 flex-wrap">
+            <div className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
               <ArrowUpDown className="w-3 h-3 text-blue-600" />
               <span>Called & Changed Status on Top</span>
             </div>
 
-            <span className="text-slate-500 font-semibold text-[10.5px] sm:text-[11px] shrink-0">Status:</span>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="flex-1 sm:flex-initial bg-white border border-slate-200 rounded-lg sm:rounded-md px-2.5 py-1.5 sm:py-1 text-[10.5px] sm:text-[11px] text-slate-700 font-medium focus:ring-1 focus:ring-blue-500"
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-semibold text-[10.5px] sm:text-[11px] shrink-0">Status:</span>
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="bg-white border border-slate-200 rounded-lg sm:rounded-md px-2.5 py-1.5 sm:py-1 text-[10.5px] sm:text-[11px] text-slate-700 font-medium focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="ALL">All Outcomes ({agentRecords.length})</option>
+                <option value="Uncalled">Uncalled</option>
+                <option value="Success">Success</option>
+                <option value="In-progress">In-progress</option>
+                <option value="Not Available">Not Available</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+            </div>
+
+            {/* DOWNLOAD EXCEL BUTTON ABOVE AGENT USER EXCEL RECORDS */}
+            <button
+              onClick={handleDownloadExcel}
+              id="btn-inspect-download-excel-records"
+              type="button"
+              className="flex items-center justify-center gap-1.5 px-3 py-1.5 sm:py-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[11px] font-bold rounded-lg sm:rounded-md transition-all shadow-xs cursor-pointer shrink-0"
+              title={`Download all ${agent?.name || 'Agent'}'s Excel records (.xlsx)`}
             >
-              <option value="ALL">All Outcomes ({agentRecords.length})</option>
-              <option value="Uncalled">Uncalled</option>
-              <option value="Success">Success</option>
-              <option value="In-progress">In-progress</option>
-              <option value="Not Available">Not Available</option>
-              <option value="Rejected">Rejected</option>
-            </select>
+              <Download className="w-3.5 h-3.5 shrink-0" />
+              <span>Download Excel</span>
+            </button>
           </div>
         </div>
 
-        {/* Mobile Horizontal Scroll Hint */}
-        <div className="sm:hidden px-2.5 py-1 bg-slate-100 text-[10px] text-slate-500 flex items-center justify-between border-b border-slate-200">
-          <span>Scroll table horizontally to view columns</span>
+        {/* Scroll Info Hint */}
+        <div className="px-2.5 sm:px-5 py-1 bg-slate-50 text-[10px] text-slate-500 flex items-center justify-between border-b border-slate-200">
+          <span className="flex items-center gap-1">
+            <span className="font-semibold text-slate-700">All Excel Columns Included</span> • Scroll horizontally to view full registration, transaction & calling telemetry
+          </span>
           <span className="font-semibold text-slate-700">{displayedRecords.length} records</span>
         </div>
 
         {/* Data Table */}
         <div className="flex-1 overflow-x-auto overflow-y-auto">
-          <table className="min-w-[720px] w-full text-left text-[11px] border-collapse">
-            <thead className="sticky top-0 bg-slate-100/95 z-10 text-slate-700 font-bold uppercase tracking-wider text-[8.5px] border-b border-slate-200">
+          <table className="min-w-[1360px] w-full text-left text-[11px] border-collapse">
+            <thead className="sticky top-0 bg-slate-100/95 backdrop-blur-xs z-10 text-slate-700 font-bold uppercase tracking-wider text-[8.5px] border-b border-slate-200">
               <tr>
-                <th className="py-1.5 px-2.5">Status</th>
-                <th className="py-1.5 px-2">Customer Name</th>
-                <th className="py-1.5 px-2">Phone Number</th>
-                <th className="py-1.5 px-2">Area / Branch</th>
-                <th className="py-1.5 px-2">Call Date</th>
-                <th className="py-1.5 px-2">Appointment</th>
-                <th className="py-1.5 px-2">Agent Feedback</th>
-                <th className="py-1.5 px-2">Supervisor Note</th>
+                <th className="py-2 px-2.5 whitespace-nowrap">Status</th>
+                <th className="py-2 px-2.5 whitespace-nowrap">Customer Name</th>
+                <th className="py-2 px-2.5 whitespace-nowrap">Phone Number</th>
+                <th className="py-2 px-2 whitespace-nowrap">Area of Reg.</th>
+                <th className="py-2 px-2 whitespace-nowrap">Reg. Date</th>
+                <th className="py-2 px-2 text-center whitespace-nowrap">Total Trans.</th>
+                <th className="py-2 px-2 whitespace-nowrap">First Trans.</th>
+                <th className="py-2 px-2 whitespace-nowrap">Last Trans.</th>
+                <th className="py-2 px-2 text-center whitespace-nowrap">Dormant Days</th>
+                <th className="py-2 px-2 whitespace-nowrap">Call Date</th>
+                <th className="py-2 px-2 whitespace-nowrap">Appointment</th>
+                <th className="py-2 px-2.5 whitespace-nowrap">Feedback Note</th>
+                <th className="py-2 px-2.5 whitespace-nowrap">Supervisor Note</th>
+                <th className="py-2 px-2 whitespace-nowrap">Agent</th>
                 {(currentUser.role === 'SUPERVISOR' || currentUser.role === 'HQ_ADMIN') && (
-                  <th className="py-1.5 px-2 text-center">Action</th>
+                  <th className="py-2 px-2 text-center whitespace-nowrap">Action</th>
                 )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {displayedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={(currentUser.role === 'SUPERVISOR' || currentUser.role === 'HQ_ADMIN') ? 9 : 8} className="py-10 text-center text-slate-400 text-[11px]">
+                  <td colSpan={(currentUser.role === 'SUPERVISOR' || currentUser.role === 'HQ_ADMIN') ? 15 : 14} className="py-10 text-center text-slate-400 text-[11px]">
                     <AlertCircle className="w-5 h-5 mx-auto mb-1 text-slate-300" />
                     No records match the current filter in this agent's Excel.
                   </td>
@@ -482,15 +504,30 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
               ) : (
                 displayedRecords.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-1.5 px-2.5">
+                    {/* 1. Status */}
+                    <td className="py-1.5 px-2.5 whitespace-nowrap">
                       <span className={`inline-block px-1.5 py-0.2 rounded-xs text-[8.5px] font-bold tracking-tight whitespace-nowrap border ${getStatusBadgeStyle(r.status)}`}>
                         {r.status}
                       </span>
                     </td>
-                    <td className="py-1.5 px-2 font-semibold text-slate-900 text-[11px]">
-                      {r.customerName}
+
+                    {/* 2. Customer Name */}
+                    <td className="py-1.5 px-2.5 font-semibold text-slate-900 text-[11px] whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 flex-nowrap">
+                        <span className="truncate max-w-[150px]">{r.customerName}</span>
+                        {r.isNewCustomer && (
+                          <span 
+                            className="inline-flex items-center px-1.5 py-0.2 rounded text-[8.5px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 select-none cursor-help hover:bg-emerald-200 transition-colors shrink-0"
+                            title="New Customer: Added in the latest Excel upload"
+                          >
+                            New Customer
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td className="py-1.5 px-2 font-mono text-slate-700 text-[10.5px]">
+
+                    {/* 3. Phone Number */}
+                    <td className="py-1.5 px-2.5 font-mono text-slate-700 text-[10.5px] whitespace-nowrap">
                       <div className="flex items-center gap-1">
                         <a href={`tel:${r.phoneNumber}`} className="hover:text-blue-600 flex items-center gap-0.5">
                           <Phone className="w-2.5 h-2.5 text-slate-400" />
@@ -505,26 +542,70 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
                         </button>
                       </div>
                     </td>
-                    <td className="py-1.5 px-2 text-slate-600 text-[11px]">
-                      {r.areaOfReg}
+
+                    {/* 4. Area of Reg. */}
+                    <td className="py-1.5 px-2 text-slate-600 text-[11px] whitespace-nowrap">
+                      {r.areaOfReg || <span className="text-slate-400 italic">-</span>}
                     </td>
-                    <td className="py-1.5 px-2 font-mono text-slate-600 text-[10.5px]">
+
+                    {/* 5. Reg. Date */}
+                    <td className="py-1.5 px-2 font-mono text-slate-600 text-[10.5px] whitespace-nowrap">
+                      {r.regDate || <span className="text-slate-400 italic">-</span>}
+                    </td>
+
+                    {/* 6. Total Transactions */}
+                    <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                      <span className="font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[10.5px]">
+                        {r.totalTransactions ?? 0}
+                      </span>
+                    </td>
+
+                    {/* 7. First Trans. Date */}
+                    <td className="py-1.5 px-2 font-mono text-slate-600 text-[10.5px] whitespace-nowrap">
+                      {r.firstTransDate || <span className="text-slate-400 italic">-</span>}
+                    </td>
+
+                    {/* 8. Last Trans. Date */}
+                    <td className="py-1.5 px-2 font-mono text-slate-600 text-[10.5px] whitespace-nowrap">
+                      {r.lastTransDate || <span className="text-slate-400 italic">-</span>}
+                    </td>
+
+                    {/* 9. Dormant Days */}
+                    <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                      <span className={`font-bold px-1.5 py-0.5 rounded text-[10.5px] ${
+                        (r.dormantDays ?? 0) >= 60 
+                          ? 'text-red-700 bg-red-50 border border-red-200' 
+                          : (r.dormantDays ?? 0) >= 30 
+                          ? 'text-amber-700 bg-amber-50 border border-amber-200' 
+                          : 'text-slate-700 bg-slate-100'
+                      }`}>
+                        {r.dormantDays ?? 0}d
+                      </span>
+                    </td>
+
+                    {/* 10. Call Date */}
+                    <td className="py-1.5 px-2 font-mono text-slate-600 text-[10.5px] whitespace-nowrap">
                       {r.callDate || <span className="text-slate-400 italic">-</span>}
                     </td>
-                    <td className="py-1.5 px-2">
+
+                    {/* 11. Appointment */}
+                    <td className="py-1.5 px-2 whitespace-nowrap">
                       {r.appointment ? (
-                        <span className="inline-block font-semibold text-red-700 bg-red-50 px-1 py-0.5 rounded-xs border border-red-200 text-[8.5px] whitespace-nowrap">
+                        <span className="inline-block font-semibold text-red-700 bg-red-50 px-1.5 py-0.5 rounded-xs border border-red-200 text-[8.5px] whitespace-nowrap">
                           {r.appointment.replace('T', ' ')}
                         </span>
                       ) : (
                         <span className="text-slate-400 italic text-[9px]">-</span>
                       )}
                     </td>
-                    <td className="py-2 px-2.5 max-w-xs text-slate-700 text-[11px] whitespace-pre-wrap break-words leading-relaxed">
-                      {r.feedbackNote || <span className="text-slate-400 italic">No notes logged</span>}
+
+                    {/* 12. Feedback Note */}
+                    <td className="py-2 px-2.5 max-w-xs text-slate-700 text-[11px] whitespace-pre-wrap break-words leading-relaxed min-w-[140px]">
+                      {r.feedbackNote || <span className="text-slate-400 italic text-[10px]">No notes logged</span>}
                     </td>
-                    {/* Supervisor Note Column (td:nth-of-type(8)) */}
-                    <td className="py-1.5 px-2 max-w-xs text-[11px] align-top">
+
+                    {/* 13. Supervisor Note */}
+                    <td className="py-1.5 px-2.5 max-w-xs text-[11px] align-top min-w-[160px]">
                       {canEditSupervisorNote ? (
                         r.supervisorNote && r.supervisorNote.trim() !== '' ? (
                           <div className="group relative bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/90 rounded-md p-1.5 transition-all shadow-2xs">
@@ -583,8 +664,15 @@ export const AgentExcelInspectionModal: React.FC<AgentExcelInspectionModalProps>
                         )
                       )}
                     </td>
+
+                    {/* 14. Assigned Agent */}
+                    <td className="py-1.5 px-2 text-slate-700 text-[10.5px] font-semibold whitespace-nowrap">
+                      {r.assignedAgentName || agent?.name || 'Unassigned'}
+                    </td>
+
+                    {/* 15. Action */}
                     {(currentUser.role === 'SUPERVISOR' || currentUser.role === 'HQ_ADMIN') && (
-                      <td className="py-1.5 px-2 text-center">
+                      <td className="py-1.5 px-2 text-center whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => {

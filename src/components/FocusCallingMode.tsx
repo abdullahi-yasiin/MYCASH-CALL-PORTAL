@@ -113,6 +113,9 @@ export const FocusCallingMode: React.FC<FocusCallingModeProps> = ({
   };
 
   const handleDisposition = (status: CallStatus) => {
+    if (status === 'Success' && currentUser.role === 'TEAM_MEMBER') {
+      return;
+    }
     const today = new Date().toISOString().slice(0, 10);
     const updated: CustomerRecord = {
       ...currentRecord,
@@ -467,13 +470,26 @@ export const FocusCallingMode: React.FC<FocusCallingModeProps> = ({
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
-              <button
-                onClick={() => handleDisposition('Success')}
-                className="h-full min-h-[60px] sm:min-h-[72px] py-2.5 sm:py-3.5 px-2 sm:px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white rounded-xl font-bold text-[11px] sm:text-xs shadow-xs transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                <span className="leading-tight text-center">Success</span>
-              </button>
+              {currentUser.role === 'TEAM_MEMBER' ? (
+                <button
+                  type="button"
+                  disabled
+                  title="Success status is automated: when a called customer's dormant period drops below 30 days upon Excel re-upload, their status becomes Success automatically."
+                  className="h-full min-h-[60px] sm:min-h-[72px] py-2.5 sm:py-3.5 px-2 sm:px-3 bg-slate-100 border border-dashed border-slate-300 text-slate-400 rounded-xl font-bold text-[10.5px] sm:text-xs shadow-none flex flex-col items-center justify-center gap-0.5 cursor-not-allowed opacity-75"
+                >
+                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-slate-400" />
+                  <span className="leading-tight text-center text-slate-500">Success</span>
+                  <span className="text-[9px] font-normal text-slate-400 leading-none">(Auto on &lt;30d)</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleDisposition('Success')}
+                  className="h-full min-h-[60px] sm:min-h-[72px] py-2.5 sm:py-3.5 px-2 sm:px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white rounded-xl font-bold text-[11px] sm:text-xs shadow-xs transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                  <span className="leading-tight text-center">Success</span>
+                </button>
+              )}
 
               <button
                 onClick={() => handleDisposition('In-progress')}

@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { GoogleGenAI, ThinkingLevel, Type, Schema } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, Type, type Schema } from '@google/genai';
 import dotenv from 'dotenv';
 
 dotenv.config();

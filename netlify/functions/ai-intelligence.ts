@@ -1,4 +1,4 @@
-import { GoogleGenAI, ThinkingLevel, Type, Schema } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, Type, type Schema } from '@google/genai';
 
 const BILINGUAL_QUOTE_SCHEMA: Schema = {
   type: Type.OBJECT,
